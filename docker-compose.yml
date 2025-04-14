@@ -1,0 +1,19 @@
+services:
+  wgclient:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wgclient:test
+    container_name: wgclient
+    ports:
+      - "51820:51820/udp"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    #volumes:
+    #  - ./config.json:/etc/wireguard/config.json
+    environment:
+      - CONFIG_FILE=/etc/wireguard/config.json
+    privileged: true
