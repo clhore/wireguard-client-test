@@ -1,7 +1,3 @@
-github.com/clhore/wireguard-packages v1.0.0 h1:AyAJgrES57La8ENOPZ2p+ONF6kjFnc2HOvots8Twbok=
-github.com/clhore/wireguard-packages v1.0.0/go.mod h1:usxqyELkeJwpFE2W/y4Mm3xTO20YcevhqBhDc7LQ2jk=
-github.com/clhore/wireguard-packages v1.0.1 h1:zdOfdV14HCVHSsyb554ayQEoCIZ2iDw0LDpjMgAkv9Q=
-github.com/clhore/wireguard-packages v1.0.1/go.mod h1:16QvbceR37HlkZ6XL7pLXy5N4DVtOxHZ3Q7ktBWv8QM=
 github.com/clhore/wireguard-packages v1.1.0 h1:Rz2s+mM7UYSmwEkl7ApkizcAz62b4Av763Mtr+hATNc=
 github.com/clhore/wireguard-packages v1.1.0/go.mod h1:16QvbceR37HlkZ6XL7pLXy5N4DVtOxHZ3Q7ktBWv8QM=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
