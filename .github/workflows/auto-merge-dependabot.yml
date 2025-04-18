@@ -13,33 +13,31 @@ permissions:
 
 jobs:
   automerge:
-    if: >
-      github.actor == 'dependabot[bot]' &&
-      (github.base_ref == 'master' || github.base_ref == 'debian/master')
+    if: github.actor == 'dependabot[bot]' && (github.base_ref == 'master' || github.base_ref == 'debian/master')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout the repository
+      - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Fetch the target branch
+      - name: Fetch the latest target branch (master or debian/master)
         run: |
           git fetch origin master
           git fetch origin debian/master
 
-      - name: Rebase and merge to the target branch
+      - name: Rebase PR over the latest base branch
         run: |
+          # Ensure we're working on the right base branch
           if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
-            echo "Rebasing onto master"
             git checkout master
-            git rebase origin/master
+            git pull origin master
           elif [[ "${GITHUB_REF}" == "refs/heads/debian/master" ]]; then
-            echo "Rebasing onto debian/master"
             git checkout debian/master
-            git rebase origin/debian/master
-          else
-            echo "No valid base branch for rebase"
+            git pull origin debian/master
           fi
+
+          # Rebase the PR branch on top of the latest master or debian/master
+          git rebase origin/${GITHUB_REF##*/}
 
       - name: Merge Dependabot PR
         uses: fastify/github-action-merge-dependabot@v3
