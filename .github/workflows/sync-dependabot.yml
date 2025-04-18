@@ -1,24 +1,20 @@
-name: Sync Dependabot updates from master to debian/master
+name: Sync Dependabot updates to other branches
 
 on:
   push:
     branches:
-      - master
+      - main
     paths:
-      - 'srv/go.mod'
-      - 'srv/go.sum'
+      - '**/package-lock.json'
+      - '**/yarn.lock'
       - '.github/dependabot.yml'
 
-permissions:
-  contents: write
-
 jobs:
-  merge-to-debian-master:
-    if: github.actor == 'dependabot[bot]'
+  sync-branches:
     runs-on: ubuntu-latest
-
+    if: github.actor == 'dependabot[bot]'
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -28,8 +24,8 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-      - name: Merge master into debian/master
+      - name: Merge main into dev
         run: |
-          git checkout debian/master
-          git merge origin/master --no-edit || echo "Nothing to merge"
-          git push origin debian/master
+          git checkout dev
+          git merge origin/main --no-edit || echo "No changes to merge"
+          git push origin dev
