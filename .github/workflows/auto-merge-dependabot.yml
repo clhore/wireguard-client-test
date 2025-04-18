@@ -30,8 +30,9 @@ jobs:
               repo: context.repo.repo,
               state: "open"
             });
-            // Filtra aquellas PRs creadas por dependabot o cuyos nombres de branch comiencen con "dependabot/"
-            const dependabotPRs = prs.filter(pr => pr.user.login === "dependabot[bot]" || pr.head.ref.startsWith("dependabot/"));
+            const dependabotPRs = prs.filter(pr =>
+              pr.user.login === "dependabot[bot]" || pr.head.ref.startsWith("dependabot/")
+            );
             core.info(`Found ${dependabotPRs.length} Dependabot PR(s).`);
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
@@ -42,11 +43,10 @@ jobs:
 
       - name: Clean combined branch if exists
         run: |
-          echo "Cleaning previous combined branch (if exists)..."
           git fetch origin dependabot-combined-prs || true
           git push origin --delete dependabot-combined-prs || true
 
-      - name: Combine Dependabot PRs
+      - name: Combine Dependabot PRs (Skip Conflicts)
         continue-on-error: true
         uses: mAAdhaTTah/combine-dependabot-prs@main
         with:
@@ -55,7 +55,7 @@ jobs:
           combineBranchName: dependabot-combined-prs
           baseBranch: master
           openPR: true
-          allowSkipped: true
+          allowSkipped: true  # Esto permite saltar los PRs con conflictos
           ignoreLabel: nocombine
           githubToken: ${{ secrets.GITHUB_TOKEN }}
 
@@ -75,12 +75,11 @@ jobs:
               return "";
             }
             const pr = prs[0];
-            core.info(`Combined PR number: ${pr.number}, created by: ${pr.user.login}`);
             core.setOutput("pr_number", pr.number);
             core.setOutput("creator", pr.user.login);
           result-encoding: string
 
-      - name: Auto-approve Combined PR (if necessary)
+      - name: Auto-approve Combined PR (if needed)
         if: ${{ steps.get_pr_info.outputs.creator != 'github-actions[bot]' && steps.get_pr_info.outputs.pr_number != '' }}
         uses: hmarr/auto-approve-action@v3
         with:
