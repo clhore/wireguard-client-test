@@ -1,0 +1,27 @@
+name: TEST - Docker Compose
+
+on:
+  push:
+    branches:
+      - master
+      - debian/master
+  pull_request:
+    branches:
+      - master
+      - debian/master
+
+jobs:
+  test:
+    runs-on: [self-hosted, srvpprg01]
+
+    steps:
+      - name: Check code
+        uses: actions/checkout@v4
+
+      - name: Exect docker compose
+        run: |
+          docker compose -f docker-compose.yml up -d
+
+      - name: Delete container
+        run: |
+          docker-compose down
