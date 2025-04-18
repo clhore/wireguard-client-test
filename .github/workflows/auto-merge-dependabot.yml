@@ -15,33 +15,34 @@ jobs:
     concurrency:
       group: "dependabot-combine"
       cancel-in-progress: false
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Clean combined branch if exists
+        run: |
+          # Intenta borrar el branch combinado existente para evitar errores de push no fast-forward
+          git fetch origin dependabot/combined-prs || true
+          git push origin --delete dependabot/combined-prs || true
 
       - name: Combine Dependabot PRs
         uses: mAAdhaTTah/combine-dependabot-prs@main
         with:
-          branchPrefix: "dependabot"
+          branchPrefix: dependabot
           mustBeGreen: true
-          combineBranchName: "combined-dependabot-prs"
-          baseBranch: "master"
+          combineBranchName: dependabot/combined-prs
+          baseBranch: master
           openPR: true
-          allowSkipped: false
-
-      - name: Fetch metadata
-        uses: dependabot/fetch-metadata@v2
-        id: metadata
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          allowSkipped: true
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Auto-approve PR
         uses: hmarr/auto-approve-action@v3
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Merge PR
+      - name: Merge Combined PR
         uses: fastify/github-action-merge-dependabot@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
