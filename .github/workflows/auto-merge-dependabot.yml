@@ -36,12 +36,19 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git fetch origin
+
+          # Fetch all remote branches to ensure the PR branch is available
+          git fetch origin "+refs/heads/*:refs/remotes/origin/*"
+
+          # Checkout the PR branch
           git checkout -b "${{ github.head_ref }}" "origin/${{ github.head_ref }}"
+
+          # Fetch and rebase onto the base branch (e.g., master or debian/master)
           git fetch origin "${{ github.base_ref }}"
           git rebase origin/"${{ github.base_ref }}"
-          git push --force-with-lease
+
+          # Force-push with lease to update the PR
+          git push --force-with-lease origin "${{ github.head_ref }}"
 
       - name: Merge PR
         uses: fastify/github-action-merge-dependabot@v3
