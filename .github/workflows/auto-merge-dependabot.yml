@@ -19,8 +19,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Rebase PR to base branch
-        run: git fetch origin ${{ github.base_ref }} && git rebase origin/${{ github.base_ref }}
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+
+      - name: Fetch and rebase to the correct base branch
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            echo "Rebasing onto master"
+            git fetch origin master
+            git rebase origin/master
+          elif [[ "${GITHUB_REF}" == "refs/heads/debian/master" ]]; then
+            echo "Rebasing onto debian/master"
+            git fetch origin debian/master
+            git rebase origin/debian/master
+          else
+            echo "No rebase needed"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -28,4 +42,3 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           rebase: true
-          merge-labels: dependencies
