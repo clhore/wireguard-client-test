@@ -22,23 +22,27 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v2
 
-      - name: Fetch and rebase to the correct base branch
+      - name: Fetch the target branch
+        run: |
+          git fetch origin master
+          git fetch origin debian/master
+
+      - name: Rebase and merge to the target branch
         run: |
           if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
             echo "Rebasing onto master"
-            git fetch origin master
+            git checkout master
             git rebase origin/master
           elif [[ "${GITHUB_REF}" == "refs/heads/debian/master" ]]; then
             echo "Rebasing onto debian/master"
-            git fetch origin debian/master
+            git checkout debian/master
             git rebase origin/debian/master
           else
-            echo "No rebase needed"
+            echo "No valid base branch for rebase"
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: fastify/github-action-merge-dependabot@v3
+      - name: Merge Dependabot PR
+        uses: fastify/github-action-merge-dependabot@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           rebase: true
