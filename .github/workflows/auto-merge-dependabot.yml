@@ -20,24 +20,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Fetch the latest target branch (master or debian/master)
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch the latest target branches
         run: |
           git fetch origin master
           git fetch origin debian/master
 
       - name: Rebase PR over the latest base branch
         run: |
-          # Ensure we're working on the right base branch
-          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+          if [[ "${GITHUB_BASE_REF}" == "master" ]]; then
             git checkout master
             git pull origin master
-          elif [[ "${GITHUB_REF}" == "refs/heads/debian/master" ]]; then
+          elif [[ "${GITHUB_BASE_REF}" == "debian/master" ]]; then
             git checkout debian/master
             git pull origin debian/master
           fi
 
-          # Rebase the PR branch on top of the latest master or debian/master
-          git rebase origin/${GITHUB_REF##*/}
+          git fetch origin ${GITHUB_HEAD_REF}
+          git rebase origin/${GITHUB_HEAD_REF}
 
       - name: Merge Dependabot PR
         uses: fastify/github-action-merge-dependabot@v3
