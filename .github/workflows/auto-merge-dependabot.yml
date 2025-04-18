@@ -12,6 +12,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: "dependabot-${{ github.head_ref }}"
+  cancel-in-progress: false
+
 jobs:
   dependabot:
     if: github.actor == 'dependabot[bot]'
