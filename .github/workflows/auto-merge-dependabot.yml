@@ -22,7 +22,7 @@ jobs:
           branchPrefix: "dependabot"
           mustBeGreen: true
           combineBranchName: "combined-dependabot-prs"
-          baseBranch: "main"
+          baseBranch: "master"
           openPR: true
           allowSkipped: false
 
