@@ -22,7 +22,6 @@ jobs:
 
       - name: Clean combined branch if exists
         run: |
-          # Intenta borrar el branch combinado existente para evitar errores de push no fast-forward
           git fetch origin dependabot/combined-prs || true
           git push origin --delete dependabot/combined-prs || true
 
@@ -37,10 +36,29 @@ jobs:
           allowSkipped: true
           githubToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Auto-approve PR
+      - name: Get Combined PR number
+        id: get_pr_number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:dependabot/combined-prs`
+            });
+            if (prs.length === 0) {
+              core.setFailed("No combined PR found");
+              return "";
+            }
+            return prs[0].number;
+          result-encoding: string
+
+      - name: Auto-approve Combined PR
         uses: hmarr/auto-approve-action@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.get_pr_number.outputs.result }}
 
       - name: Merge Combined PR
         uses: fastify/github-action-merge-dependabot@v3
@@ -48,3 +66,4 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           merge-method: squash
           use-github-auto-merge: false
+          pr-number: ${{ steps.get_pr_number.outputs.result }}
