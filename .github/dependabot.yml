@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/srv"
+    schedule:
+      interval: "weekly"
+    target-branch: "master"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "gomod"
+    directory: "/srv"
+    schedule:
+      interval: "weekly"
+    target-branch: "debian/master"
+    open-pull-requests-limit: 5
