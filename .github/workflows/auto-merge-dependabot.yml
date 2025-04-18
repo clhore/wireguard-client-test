@@ -13,15 +13,35 @@ jobs:
   combine-and-automerge:
     runs-on: ubuntu-latest
     concurrency:
-      group: "dependabot-combine"
+      group: "dependabot-combine-${{ github.ref }}"
       cancel-in-progress: false
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Check if Dependabot PRs exist
+        id: check_prs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+            const dependabotPRs = prs.filter(pr => pr.user.login === "dependabot[bot]" || pr.head.ref.startsWith("dependabot/"));
+            core.info(`Found ${dependabotPRs.length} Dependabot PR(s).`);
+            return dependabotPRs.length > 0 ? "true" : "false";
+          result-encoding: string
+
+      - name: Stop if no Dependabot PRs found
+        if: steps.check_prs.outputs.result == 'false'
+        run: echo "No Dependabot PRs found. Exiting..." && exit 0
+
       - name: Clean combined branch if exists
         run: |
+          echo "Cleaning previous combined branch (if exists)..."
           git fetch origin dependabot/combined-prs || true
           git push origin --delete dependabot/combined-prs || true
 
@@ -34,31 +54,36 @@ jobs:
           baseBranch: master
           openPR: true
           allowSkipped: true
+          ignoreLabel: nocombine
           githubToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get Combined PR number
-        id: get_pr_number
+      - name: Get Combined PR number and creator
+        id: get_pr_info
         uses: actions/github-script@v7
         with:
           script: |
             const { data: prs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: 'open',
+              state: "open",
               head: `${context.repo.owner}:dependabot/combined-prs`
             });
             if (prs.length === 0) {
               core.setFailed("No combined PR found");
               return "";
             }
-            return prs[0].number;
+            const pr = prs[0];
+            core.info(`Combined PR number: ${pr.number}, created by: ${pr.user.login}`);
+            core.setOutput("pr_number", pr.number);
+            core.setOutput("creator", pr.user.login);
           result-encoding: string
 
       - name: Auto-approve Combined PR
+        if: steps.get_pr_info.outputs.creator != 'github-actions[bot]'
         uses: hmarr/auto-approve-action@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          pull-request-number: ${{ steps.get_pr_number.outputs.result }}
+          pull-request-number: ${{ steps.get_pr_info.outputs.pr_number }}
 
       - name: Merge Combined PR
         uses: fastify/github-action-merge-dependabot@v3
@@ -66,4 +91,4 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           merge-method: squash
           use-github-auto-merge: false
-          pr-number: ${{ steps.get_pr_number.outputs.result }}
+          pr-number: ${{ steps.get_pr_info.outputs.pr_number }}
