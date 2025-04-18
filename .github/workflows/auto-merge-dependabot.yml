@@ -1,9 +1,9 @@
 name: Combine and Auto-Merge Dependabot PRs
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 3 * * 1'  # Ejecuta cada lunes a las 3:00 AM UTC
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,6 +12,9 @@ permissions:
 jobs:
   combine-and-automerge:
     runs-on: ubuntu-latest
+    concurrency:
+      group: "dependabot-combine"
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v3
