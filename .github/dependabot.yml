@@ -6,6 +6,10 @@ updates:
       interval: "weekly"
     target-branch: "master"
     open-pull-requests-limit: 5
+    security-updates: true
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
 
   - package-ecosystem: "gomod"
     directory: "/srv"
@@ -13,3 +17,7 @@ updates:
       interval: "weekly"
     target-branch: "debian/master"
     open-pull-requests-limit: 5
+    security-updates: true
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
