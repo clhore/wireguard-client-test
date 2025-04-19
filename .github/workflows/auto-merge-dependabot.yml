@@ -32,33 +32,28 @@ jobs:
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
 
-  get-prs-without-conflicts:
+  create-temp-branch:
     needs: check-dependabot-prs
     if: needs.check-dependabot-prs.outputs.found == 'true'
     runs-on: ubuntu-latest
     outputs:
-      conflicts: ${{ steps.set_output.outputs.conflicts }}
+      branch_name: ${{ steps.set_output.outputs.branch_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Find merge conflicts
-        id: find_conflicts
-        uses: olivernybroe/action-conflict-finder@v4.0
-        continue-on-error: true
-
-      - name: Set output for PRs without conflicts
+      - name: Create and push temporary branch
         id: set_output
         run: |
-          if [ "${{ steps.find_conflicts.outcome }}" == "success" ]; then
-            echo "conflicts=true" >> $GITHUB_OUTPUT
-          else
-            echo "conflicts=false" >> $GITHUB_OUTPUT
-          fi
-          
+          branch_name="temp-dependabot-combine-$(date +%Y%m%d%H%M%S)"
+          echo "branch_name=${branch_name}" >> $GITHUB_ENV
+          echo "branch_name=${branch_name}" >> $GITHUB_OUTPUT
+          git fetch origin
+          git checkout -b $branch_name origin/debian/master
+          git push origin $branch_name
+
   combine-dependabot-prs:
-    needs: check-dependabot-prs
-    if: needs.get-prs-without-conflicts.outputs.conflicts == 'true'
+    needs: create-temp-branch
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.get_pr_info.outputs.pr_number }}
@@ -69,12 +64,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Clean combined branch if exists
+      - name: Clean previous combined branch if exists
         run: |
           if git ls-remote --exit-code --heads origin dependabot-combined-prs; then
             git push origin --delete dependabot-combined-prs
           else
-            echo "La rama dependabot-combined-prs no existe en el remoto."
+            echo "No previous dependabot-combined-prs branch."
           fi
 
       - name: Combine Dependabot PRs
@@ -84,7 +79,7 @@ jobs:
           branchPrefix: dependabot
           mustBeGreen: true
           combineBranchName: dependabot-combined-prs
-          baseBranch: debian/master
+          baseBranch: ${{ needs.create-temp-branch.outputs.branch_name }}
           openPR: true
           allowSkipped: true
           ignoreLabel: nocombine
@@ -95,7 +90,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Espera 2 segundos para que la nueva PR se indexe; ajustar si es necesario
             await new Promise(resolve => setTimeout(resolve, 2000));
             const { data: prs } = await github.rest.pulls.list({
               owner: context.repo.owner,
@@ -121,7 +115,7 @@ jobs:
           github-token: ${{ secrets.BOT_PAT }}
           pull-request-number: ${{ needs.combine-dependabot-prs.outputs.pr_number }}
 
-      - name: Merge Combined PR (solo si autor es github-actions o dependabot)
+      - name: Merge Combined PR (only if author is github-actions or dependabot)
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT_PAT }}
@@ -130,20 +124,20 @@ jobs:
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: prNumber,
+              pull_number: prNumber
             });
             const author = pr.user.login;
-            core.info(`El autor del PR #${prNumber} es ${author}`);
+            core.info(`Author of PR #${prNumber} is ${author}`);
             if (author === 'github-actions[bot]' || author === 'dependabot[bot]') {
               await github.rest.pulls.merge({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: prNumber,
-                merge_method: 'squash',
+                merge_method: 'squash'
               });
-              core.info(`✅ PR #${prNumber} fusionado correctamente.`);
+              core.info(`✅ PR #${prNumber} merged.`);
             } else {
-              core.info(`⏭ PR #${prNumber} no fusionado (autor: ${author})`);
+              core.info(`⏭ Skipping merge, author is ${author}.`);
             }
 
       - name: Delete combined branch if merged
@@ -158,58 +152,59 @@ jobs:
               pull_number: prNumber
             });
             if (pr.merged) {
-              core.info("PR has been merged. Deleting combined branch...");
               await github.rest.git.deleteRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 ref: 'heads/dependabot-combined-prs'
               });
+              core.info("🧹 Deleted dependabot-combined-prs after merge.");
             } else {
-              core.info("PR not merged. Keeping combined branch.");
+              core.info("PR not merged. Keeping branch for review.");
             }
 
-      
-      - name: Close and delete combined branch if merged
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = Number('${{ needs.combine-dependabot-prs.outputs.pr_number }}');
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber
-            });
-
-            const body = pr.body;
-            const prNumbers = [...body.matchAll(/#(\d+)/g)].map(match => Number(match[1]));
-
-            for (const number of prNumbers) {
-              try {
-                // Cerrar la PR original
-                await github.rest.pulls.update({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: number,
-                  state: 'closed'
-                });
-                core.info(`PR #${number} cerrada.`);
-
-                // Obtener información de la PR para eliminar la rama
-                const { data: originalPr } = await github.rest.pulls.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: number
-                });
-
-                const branchRef = `heads/${originalPr.head.ref}`;
-                await github.rest.git.deleteRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: branchRef
-                });
-                core.info(`Rama ${branchRef} eliminada.`);
-              } catch (error) {
-                core.warning(`No se pudo cerrar o eliminar la PR #${number}: ${error.message}`);
-              }
-            }
+#      
+#      - name: Close and delete combined branch if merged
+#        uses: actions/github-script@v7
+#        with:
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          script: |
+#            const prNumber = Number('${{ needs.combine-dependabot-prs.outputs.pr_number }}');
+#            const { data: pr } = await github.rest.pulls.get({
+#              owner: context.repo.owner,
+#              repo: context.repo.repo,
+#              pull_number: prNumber
+#            });
+#
+#            const body = pr.body;
+#            const prNumbers = [...body.matchAll(/#(\d+)/g)].map(match => Number(match[1]));
+#
+#            for (const number of prNumbers) {
+#              try {
+#                // Cerrar la PR original
+#                await github.rest.pulls.update({
+#                  owner: context.repo.owner,
+#                  repo: context.repo.repo,
+#                  pull_number: number,
+#                  state: 'closed'
+#                });
+#                core.info(`PR #${number} cerrada.`);
+#
+#                // Obtener información de la PR para eliminar la rama
+#                const { data: originalPr } = await github.rest.pulls.get({
+#                  owner: context.repo.owner,
+#                  repo: context.repo.repo,
+#                  pull_number: number
+#                });
+#
+#                const branchRef = `heads/${originalPr.head.ref}`;
+#                await github.rest.git.deleteRef({
+#                  owner: context.repo.owner,
+#                  repo: context.repo.repo,
+#                  ref: branchRef
+#                });
+#                core.info(`Rama ${branchRef} eliminada.`);
+#              } catch (error) {
+#                core.warning(`No se pudo cerrar o eliminar la PR #${number}: ${error.message}`);
+#              }
+#            }
+#
