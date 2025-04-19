@@ -32,7 +32,7 @@ jobs:
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
 
-  combine-and-automerge:
+  combine-dependabot-prs:
     needs: check-dependabot-prs
     if: needs.check-dependabot-prs.outputs.found == 'true'
     runs-on: ubuntu-latest
@@ -80,20 +80,26 @@ jobs:
             core.setOutput("pr_number", prs[0].number);
           result-encoding: string
 
+  automerge-dependabot-prs:
+    needs: combine-dependabot-prs
+    if: needs.combine-dependabot-prs.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Auto-approve with Bot Token
-        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        if: ${{ needs.combine-dependabot-prs.outputs.pr_number != '' }}
         uses: hmarr/auto-approve-action@v4
         with:
           github-token: ${{ secrets.BOT_PAT }}
-          pull-request-number: ${{ steps.get_pr_info.outputs.pr_number }}
+          pull-request-number: ${{ needs.combine-dependabot-prs.outputs.pr_number }}
 
       - name: Merge Combined PR (solo si autor es github-actions o dependabot)
-        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        if: ${{ needs.combine-dependabot-prs.outputs.pr_number != '' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT_PAT }}
           script: |
-            const prNumber = parseInt('${{ steps.get_pr_info.outputs.pr_number }}');
+            const prNumber = parseInt('${{ needs.combine-dependabot-prs.outputs.pr_number }}');
 
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -117,12 +123,12 @@ jobs:
             }
 
       - name: Delete combined branch if merged
-        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        if: ${{ needs.combine-dependabot-prs.outputs.pr_number != '' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prNumber = Number('${{ steps.get_pr_info.outputs.pr_number }}');
+            const prNumber = Number('${{ needs.combine-dependabot-prs.outputs.pr_number }}');
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
