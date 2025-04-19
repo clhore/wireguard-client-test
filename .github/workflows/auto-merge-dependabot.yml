@@ -189,8 +189,9 @@ jobs:
               core.info("PR not merged. Keeping branch for review.");
             }
 
-  finalize-check:
-    name: Finalize Check and Extract PR Information
+  extract-pr-info:
+    if: needs.combine-dependabot-prs.outputs.pr_number != ''
+    name: Extract PR Information
     needs: automerge-dependabot-prs
     runs-on: ubuntu-latest
     steps:
@@ -209,7 +210,7 @@ jobs:
                 repo: context.repo.repo,
                 ref
               });
-              core.info("Deleted 'dependabot-combined-prs' branch in finalize-check.");
+              core.info("Deleted 'dependabot-combined-prs' branch.");
             } catch (error) {
               core.info("Branch 'dependabot-combined-prs' does not exist or failed to delete: " + error.message);
             }
@@ -259,6 +260,55 @@ jobs:
         with:
           name: pr-summary
           path: pr-summary.json
+
+  send-email:
+    name: Send Email with PR Summary
+    needs: extract-pr-info
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download PR Summary Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: pr-summary
+
+      - name: Send Email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Resumen de la fusión de PRs de Dependabot"
+          body: |
+            Se ha fusionado la siguiente PR combinada:
+            ${{ steps.get_pr_details.outputs.summary }}
+          to: adria7904@gmail.com
+          from: adria7904@gmail.com
+
+  finalize-check:
+    needs: send-email
+    name: Final Cleanup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Delete Combined Branch (Final Cleanup)
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const ref = 'heads/dependabot-combined-prs';
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref
+              });
+              core.info("Deleted 'dependabot-combined-prs' branch in finalize-check.");
+            } catch (error) {
+              core.info("Branch 'dependabot-combined-prs' does not exist or failed to delete: " + error.message);
+            }
 
       # Uncomment the following block if you want to close and delete the original PRs after merging
 #      
