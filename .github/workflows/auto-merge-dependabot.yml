@@ -42,18 +42,59 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Create and push temporary branch
+      - name: Crear y preparar la rama temporal
         id: set_output
         run: |
           branch_name="temp-dependabot-combine-$(date +%Y%m%d%H%M%S)"
-          echo "branch_name=${branch_name}" >> $GITHUB_ENV
-          echo "branch_name=${branch_name}" >> $GITHUB_OUTPUT
-          git fetch origin
-          git checkout -b $branch_name origin/debian/master
+          git checkout -b $branch_name
           git push origin $branch_name
+          echo "branch_name=${branch_name}" >> $GITHUB_OUTPUT
+
+  get-prs-without-conflicts:
+    needs: create-temp-branch
+    runs-on: ubuntu-latest
+    outputs:
+      conflicts: ${{ steps.set_output.outputs.has_conflicts }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Check for open Dependabot PRs without conflicts
+        id: set_output
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+
+            const dependabotPRs = prs.filter(pr =>
+              pr.user.login === "dependabot[bot]" || pr.head.ref.startsWith("dependabot/")
+            );
+
+            const prsWithoutConflicts = [];
+
+            for (const pr of dependabotPRs) {
+              const { data: mergeableInfo } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+              });
+
+              if (mergeableInfo.mergeable === true) {
+                prsWithoutConflicts.push(pr.number);
+              }
+            }
+
+            const hasConflicts = prsWithoutConflicts.length > 0 ? "true" : "false";
+            core.setOutput("has_conflicts", hasConflicts);
+          result-encoding: string
 
   combine-dependabot-prs:
-    needs: create-temp-branch
+    needs: [get-prs-without-conflicts, create-temp-branch]
+    if: needs.get-prs-without-conflicts.outputs.conflicts == 'true'
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.get_pr_info.outputs.pr_number }}
@@ -64,12 +105,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Clean previous combined branch if exists
+      - name: Clean combined branch if exists
         run: |
           if git ls-remote --exit-code --heads origin dependabot-combined-prs; then
             git push origin --delete dependabot-combined-prs
           else
-            echo "No previous dependabot-combined-prs branch."
+            echo "La rama dependabot-combined-prs no existe en el remoto."
           fi
 
       - name: Combine Dependabot PRs
