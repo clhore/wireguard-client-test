@@ -41,27 +41,57 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Necesario para cherry-pick
 
-      - name: Find merge conflicts
-        id: find_conflicts
-        uses: olivernybroe/action-conflict-finder@v4.0
-        continue-on-error: true
-
-      - name: Set output for PRs without conflicts
-        id: set_output
+      - name: Set up Git
         run: |
-          if [ "${{ steps.find_conflicts.outcome }}" == "success" ]; then
-            echo "conflicts=true" >> $GITHUB_OUTPUT
-          else
-            echo "conflicts=false" >> $GITHUB_OUTPUT
-          fi
-          
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "github-actions"
+
+      - name: Fetch all PRs and test cherry-pick
+        id: simulate_cherry_pick
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const execSync = require('child_process').execSync;
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+
+            const dependabotPRs = prs.filter(pr =>
+              pr.user.login === "dependabot[bot]" || pr.head.ref.startsWith("dependabot/")
+            );
+
+            console.log(`Found ${dependabotPRs.length} Dependabot PRs`);
+            execSync('git checkout -b temp-cherry-pick origin/debian/master');
+
+            let conflictFree = 0;
+            for (const pr of dependabotPRs) {
+              try {
+                execSync(`git fetch origin ${pr.head.ref}`);
+                execSync(`git cherry-pick FETCH_HEAD`);
+                conflictFree++;
+              } catch (err) {
+                console.log(`Conflict in PR #${pr.number}, skipping...`);
+                execSync('git cherry-pick --abort');
+              }
+            }
+
+            const result = conflictFree > 0 ? 'true' : 'false';
+            console.log(`Result: ${result}`);
+            core.setOutput('conflicts', result);
+      
+      - name: Set output
+        id: set_output
+        run: echo "conflicts=${{ steps.simulate_cherry_pick.outputs.conflicts }}" >> $GITHUB_OUTPUT
+
   combine-dependabot-prs:
     needs: get-prs-without-conflicts
     if: needs.get-prs-without-conflicts.outputs.conflicts == 'true'
     runs-on: ubuntu-latest
-    outputs:
-      pr_number: ${{ steps.get_pr_info.outputs.pr_number }}
     concurrency:
       group: "dependabot-combine-${{ github.ref }}"
       cancel-in-progress: false
@@ -78,7 +108,6 @@ jobs:
           fi
 
       - name: Combine Dependabot PRs
-        continue-on-error: true
         uses: mAAdhaTTah/combine-dependabot-prs@main
         with:
           branchPrefix: dependabot
