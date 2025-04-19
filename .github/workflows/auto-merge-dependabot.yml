@@ -255,11 +255,11 @@ jobs:
         shell: bash
 
       - name: Upload PR Summary Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v3.0.0
         with:
           name: pr-summary
           path: pr-summary.json
-          
+
       # Uncomment the following block if you want to close and delete the original PRs after merging
 #      
 #      - name: Close and delete combined branch if merged
