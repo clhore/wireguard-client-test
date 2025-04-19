@@ -32,33 +32,13 @@ jobs:
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
 
-  create-temp-branch:
+  get-prs-without-conflicts:
     needs: check-dependabot-prs
     if: needs.check-dependabot-prs.outputs.found == 'true'
     runs-on: ubuntu-latest
     outputs:
-      branch_name: ${{ steps.set_output.outputs.branch_name }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Crear y preparar la rama temporal
-        id: set_output
-        run: |
-          branch_name="temp-dependabot-combine-$(date +%Y%m%d%H%M%S)"
-          git checkout -b $branch_name
-          git push origin $branch_name
-          echo "branch_name=${branch_name}" >> $GITHUB_OUTPUT
-
-  get-prs-without-conflicts:
-    needs: create-temp-branch
-    runs-on: ubuntu-latest
-    outputs:
       conflicts: ${{ steps.set_output.outputs.has_conflicts }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
       - name: Check for open Dependabot PRs without conflicts
         id: set_output
         uses: actions/github-script@v7
@@ -93,7 +73,7 @@ jobs:
           result-encoding: string
 
   combine-dependabot-prs:
-    needs: [get-prs-without-conflicts, create-temp-branch]
+    needs: get-prs-without-conflicts
     if: needs.get-prs-without-conflicts.outputs.conflicts == 'true'
     runs-on: ubuntu-latest
     outputs:
@@ -120,7 +100,7 @@ jobs:
           branchPrefix: dependabot
           mustBeGreen: true
           combineBranchName: dependabot-combined-prs
-          baseBranch: ${{ needs.create-temp-branch.outputs.branch_name }}
+          baseBranch: debian/master
           openPR: true
           allowSkipped: true
           ignoreLabel: nocombine
@@ -156,7 +136,7 @@ jobs:
           github-token: ${{ secrets.BOT_PAT }}
           pull-request-number: ${{ needs.combine-dependabot-prs.outputs.pr_number }}
 
-      - name: Merge Combined PR (only if author is github-actions or dependabot)
+      - name: Merge Combined PR
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT_PAT }}
@@ -167,18 +147,18 @@ jobs:
               repo: context.repo.repo,
               pull_number: prNumber
             });
-            const author = pr.user.login;
-            core.info(`Author of PR #${prNumber} is ${author}`);
-            if (author === 'github-actions[bot]' || author === 'dependabot[bot]') {
+
+            if (pr.user.login === 'github-actions[bot]' || pr.user.login === 'dependabot[bot]') {
               await github.rest.pulls.merge({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: prNumber,
                 merge_method: 'squash'
               });
-              core.info(`✅ PR #${prNumber} merged.`);
+              core.info(`PR #${prNumber} merged successfully.`);
             } else {
-              core.info(`⏭ Skipping merge, author is ${author}.`);
+              core.info(`PR #${prNumber} not merged automatically (author: ${pr.user.login})`);
+            }
             }
 
       - name: Delete combined branch if merged
