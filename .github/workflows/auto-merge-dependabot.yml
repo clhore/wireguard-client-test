@@ -112,3 +112,45 @@ jobs:
             } else {
               core.info(`⏭ PR #${prNumber} no fusionado (autor: ${author})`);
             }
+      - name: Close original Dependabot PRs and delete branches
+        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_PAT }}
+          script: |
+            const basePr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number('${{ steps.get_pr_info.outputs.pr_number }}')
+            });
+
+            const { data: allPRs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+
+            const originalPRs = allPRs.filter(pr =>
+              pr.user.login === "dependabot[bot]" &&
+              pr.head.ref !== "dependabot-combined-prs"
+            );
+
+            for (const pr of originalPRs) {
+              core.info(`Closing PR #${pr.number} and deleting branch ${pr.head.ref}`);
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                state: "closed"
+              });
+
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${pr.head.ref}`
+                });
+              } catch (error) {
+                core.warning(`Could not delete branch ${pr.head.ref}: ${error.message}`);
+              }
+            }
