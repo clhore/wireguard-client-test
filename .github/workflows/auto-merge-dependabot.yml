@@ -89,7 +89,7 @@ jobs:
           result-encoding: string
 
   combine-dependabot-prs:
-    needs: get-prs-without-conflicts
+    needs: [get-prs-without-conflicts, delete-combined-branch]
     if: needs.get-prs-without-conflicts.outputs.conflicts == 'true'
     runs-on: ubuntu-latest
     outputs:
@@ -101,9 +101,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-    needs: delete-combined-branch
-
-    steps:
       - name: Combine Dependabot PRs
         continue-on-error: true
         uses: mAAdhaTTah/combine-dependabot-prs@main
