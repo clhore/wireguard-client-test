@@ -10,6 +10,28 @@ permissions:
   pull-requests: write
 
 jobs:
+  check-dependabot-prs:
+    runs-on: ubuntu-latest
+    outputs:
+      found: ${{ steps.check_prs.outputs.result }}
+    steps:
+      - name: Check if Dependabot PRs exist
+        id: check_prs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+            const dependabotPRs = prs.filter(pr =>
+              pr.user.login === "dependabot[bot]" || pr.head.ref.startsWith("dependabot/")
+            );
+            core.info(`Found ${dependabotPRs.length} Dependabot PR(s).`);
+            return dependabotPRs.length > 0 ? "true" : "false";
+          result-encoding: string
+          
   combine-dependabot-prs:
     needs: check-dependabot-prs
     if: needs.check-dependabot-prs.outputs.found == 'true'
