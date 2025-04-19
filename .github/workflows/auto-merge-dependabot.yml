@@ -1,9 +1,9 @@
 name: Combine and Auto-Merge Dependabot PRs
 
 on:
-  schedule:
-    - cron: '0 3 * * 1'  # Ejecuta cada lunes a las 3:00 AM UTC
   workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'  # Lunes a las 3:00 AM UTC
 
 permissions:
   contents: write
@@ -12,35 +12,171 @@ permissions:
 jobs:
   combine-and-automerge:
     runs-on: ubuntu-latest
+    concurrency:
+      group: "dependabot-combine-${{ github.ref }}"
+      cancel-in-progress: false
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Combine Dependabot PRs
+      - name: Check if Dependabot PRs exist
+        id: check_prs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+            const dependabotPRs = prs.filter(pr =>
+              pr.user.login === "dependabot[bot]" || pr.head.ref.startsWith("dependabot/")
+            );
+            core.info(`Found ${dependabotPRs.length} Dependabot PR(s).`);
+            return dependabotPRs.length > 0 ? "true" : "false";
+          result-encoding: string
+
+      - name: Stop if no Dependabot PRs found
+        if: steps.check_prs.outputs.result == 'false'
+        run: echo "No Dependabot PRs found. Exiting..." && exit 0
+
+      - name: Clean combined branch if exists
+        run: |
+          git fetch origin dependabot-combined-prs || true
+          git push origin --delete dependabot-combined-prs || true
+
+      - name: Combine Dependabot PRs (usando github-actions)
+        continue-on-error: true
         uses: mAAdhaTTah/combine-dependabot-prs@main
         with:
-          branchPrefix: "dependabot"
+          branchPrefix: dependabot
           mustBeGreen: true
-          combineBranchName: "combined-dependabot-prs"
-          baseBranch: "main"
+          combineBranchName: dependabot-combined-prs
+          baseBranch: master
           openPR: true
-          allowSkipped: false
+          allowSkipped: true
+          ignoreLabel: nocombine
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fetch metadata
-        uses: dependabot/fetch-metadata@v2
-        id: metadata
+      - name: Get Combined PR number
+        id: get_pr_info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              head: `${context.repo.owner}:dependabot-combined-prs`
+            });
+            if (prs.length === 0) {
+              core.info("No combined PR found.");
+              return;
+            }
+            core.setOutput("pr_number", prs[0].number);
+          result-encoding: string
+
+      - name: Auto-approve with Bot Token
+        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        uses: hmarr/auto-approve-action@v4
+        with:
+          github-token: ${{ secrets.BOT_PAT }}
+          pull-request-number: ${{ steps.get_pr_info.outputs.pr_number }}
+
+      - name: Merge Combined PR (solo si autor es github-actions o dependabot)
+        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_PAT }}
+          script: |
+            const prNumber = parseInt('${{ steps.get_pr_info.outputs.pr_number }}');
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const author = pr.user.login;
+            core.info(`El autor del PR #${prNumber} es ${author}`);
+
+            if (author === 'github-actions[bot]' || author === 'dependabot[bot]') {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                merge_method: 'squash',
+              });
+              core.info(`✅ PR #${prNumber} fusionado correctamente.`);
+            } else {
+              core.info(`⏭ PR #${prNumber} no fusionado (autor: ${author})`);
+            }
+
+      - name: Delete combined branch if merged
+        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = Number('${{ steps.get_pr_info.outputs.pr_number }}');
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
 
-      - name: Auto-approve PR
-        uses: hmarr/auto-approve-action@v3
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+            if (pr.merged) {
+              core.info("PR has been merged. Deleting combined branch...");
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'heads/dependabot-combined-prs'
+              });
+            } else {
+              core.info("PR not merged. Keeping combined branch.");
+            }
 
-      - name: Merge PR
-        uses: fastify/github-action-merge-dependabot@v3
+
+      - name: Close original Dependabot PRs and delete branches
+        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          merge-method: squash
-          use-github-auto-merge: false
+          github-token: ${{ secrets.BOT_PAT }}
+          script: |
+            const basePr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: Number('${{ steps.get_pr_info.outputs.pr_number }}')
+            });
+
+            const { data: allPRs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+
+            const originalPRs = allPRs.filter(pr =>
+              pr.user.login === "dependabot[bot]" &&
+              pr.head.ref !== "dependabot-combined-prs"
+            );
+
+            for (const pr of originalPRs) {
+              core.info(`Closing PR #${pr.number} and deleting branch ${pr.head.ref}`);
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                state: "closed"
+              });
+
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${pr.head.ref}`
+                });
+              } catch (error) {
+                core.warning(`Could not delete branch ${pr.head.ref}: ${error.message}`);
+              }
+            }
