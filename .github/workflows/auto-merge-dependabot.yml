@@ -57,7 +57,7 @@ jobs:
           openPR: true
           allowSkipped: true
           ignoreLabel: nocombine
-          githubToken: ${{ secrets.GITHUB_TOKEN }}  # 🔵 GitHub Actions crea el PR
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get Combined PR number
         id: get_pr_info
@@ -81,7 +81,7 @@ jobs:
         if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
         uses: hmarr/auto-approve-action@v4
         with:
-          github-token: ${{ secrets.BOT_PAT }}  # 🟢 El bot aprueba
+          github-token: ${{ secrets.BOT_PAT }}
           pull-request-number: ${{ steps.get_pr_info.outputs.pr_number }}
 
       - name: Merge Combined PR (solo si autor es github-actions o dependabot)
@@ -112,6 +112,32 @@ jobs:
             } else {
               core.info(`⏭ PR #${prNumber} no fusionado (autor: ${author})`);
             }
+
+      - name: Delete combined branch if merged
+        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = Number('${{ steps.get_pr_info.outputs.pr_number }}');
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            if (pr.merged) {
+              core.info("PR has been merged. Deleting combined branch...");
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'heads/dependabot-combined-prs'
+              });
+            } else {
+              core.info("PR not merged. Keeping combined branch.");
+            }
+
+
       - name: Close original Dependabot PRs and delete branches
         if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
         uses: actions/github-script@v7
