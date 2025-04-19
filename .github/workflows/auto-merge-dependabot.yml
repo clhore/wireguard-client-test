@@ -32,6 +32,22 @@ jobs:
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
 
+    delete-combined-branch:
+      name: Delete Combined Branch
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+
+        - name: Delete 'dependabot-combined-prs' branch if it exists
+          run: |
+            if git ls-remote --exit-code --heads origin dependabot-combined-prs; then
+              git push origin --delete dependabot-combined-prs
+              echo "Deleted 'dependabot-combined-prs' branch."
+            else
+              echo "'dependabot-combined-prs' branch does not exist."
+            fi
+
   get-prs-without-conflicts:
     needs: check-dependabot-prs
     if: needs.check-dependabot-prs.outputs.found == 'true'
@@ -85,14 +101,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Clean combined branch if exists
-        run: |
-          if git ls-remote --exit-code --heads origin dependabot-combined-prs; then
-            git push origin --delete dependabot-combined-prs
-          else
-            echo "La rama dependabot-combined-prs no existe en el remoto."
-          fi
+    needs: delete-combined-branch
 
+    steps:
       - name: Combine Dependabot PRs
         continue-on-error: true
         uses: mAAdhaTTah/combine-dependabot-prs@main
@@ -177,7 +188,7 @@ jobs:
                 repo: context.repo.repo,
                 ref: 'heads/dependabot-combined-prs'
               });
-              core.info("🧹 Deleted dependabot-combined-prs after merge.");
+              core.info(":: Deleted dependabot-combined-prs after merge.");
             } else {
               core.info("PR not merged. Keeping branch for review.");
             }
