@@ -79,7 +79,7 @@ jobs:
 
       - name: Auto-approve with Bot Token
         if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
-        uses: hmarr/auto-approve-action@v3
+        uses: hmarr/auto-approve-action@v4
         with:
           github-token: ${{ secrets.BOT_PAT }}  # 🟢 El bot aprueba
           pull-request-number: ${{ steps.get_pr_info.outputs.pr_number }}
