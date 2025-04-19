@@ -38,10 +38,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.get_pr_info.outputs.pr_number }}
+      failed_dependencies: ${{ steps.extract_failed.outputs.failed_dependencies }}
     concurrency:
       group: "dependabot-combine-${{ github.ref }}"
       cancel-in-progress: false
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -51,26 +51,42 @@ jobs:
           git fetch origin dependabot-combined-prs || true
           git push origin --delete dependabot-combined-prs || true
 
-      - name: Combine Dependabot PRs
+      - name: Combine Dependabot PRs and capture logs
+        id: combine
         continue-on-error: true
-        uses: mAAdhaTTah/combine-dependabot-prs@main
-        with:
-          branchPrefix: dependabot
-          mustBeGreen: true
-          combineBranchName: dependabot-combined-prs
-          baseBranch: master
-          openPR: true
-          allowSkipped: true
-          ignoreLabel: nocombine
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # Ejecutamos la acción de combinación y redirigimos la salida a un archivo de log.
+          # Nota: Se asume que la acción se puede ejecutar mediante npx o invocando su entrypoint.
+          # En este ejemplo se utiliza "npx" para simularlo; en tu entorno adapta la llamada según lo necesario.
+          npx mAAdhaTTah/combine-dependabot-prs@main \
+            --branchPrefix="dependabot" \
+            --mustBeGreen="true" \
+            --combineBranchName="dependabot-combined-prs" \
+            --baseBranch="master" \
+            --openPR="true" \
+            --allowSkipped="true" \
+            --ignoreLabel="nocombine" \
+            --githubToken="${{ secrets.GITHUB_TOKEN }}" 2>&1 | tee combine.log
+
+      - name: Extract failed dependencies
+        id: extract_failed
+        shell: bash
+        run: |
+          # Buscar en el log las líneas que indiquen fallo al aplicar una actualización.
+          # Se espera que aparezcan líneas con el formato:
+          #   Failed to apply "Bump <dependency> from <old_version> to <new_version>
+          failed_deps=$(grep 'Failed to apply "Bump' combine.log | sed -n 's/Failed to apply "Bump \([^"]*\).*/\1/p' | sort | uniq | paste -sd ',' -)
+          echo "failed_dependencies=$failed_deps" >> "$GITHUB_OUTPUT"
+        # Deja en blanco si no se encuentra nada, es decir, todas se aplicaron correctamente.
 
       - name: Get Combined PR number
         id: get_pr_info
         uses: actions/github-script@v7
         with:
           script: |
-            // Espera 10 segundos para que la nueva PR se indexe
-            await new Promise(resolve => setTimeout(resolve, 10000));
+            # Espera 2 segundos para que la PR recién creada se indexe
+            await new Promise(resolve => setTimeout(resolve, 2000));
             const { data: prs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -142,16 +158,17 @@ jobs:
               core.info("PR not merged. Keeping combined branch.");
             }
 
-      - name: Close original Dependabot PRs and delete branches
+      - name: Close original Dependabot PRs based on applied dependencies
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT_PAT }}
           script: |
-            const { data: basePr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: Number('${{ needs.combine-dependabot-prs.outputs.pr_number }}')
-            });
+            // Obtenemos el listado de dependencias que fallaron (no aplicadas)
+            const failedDepsStr = "${{ needs.combine-dependabot-prs.outputs.failed_dependencies }}";
+            const failedDeps = failedDepsStr.split(',').map(d => d.trim()).filter(Boolean);
+            core.info(`Failed dependencies (not applied): ${failedDeps.join(', ')}`);
+            
+            // Obtenemos todas las PRs abiertas originales de Dependabot (excluyendo la rama combinada)
             const { data: allPRs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -162,20 +179,31 @@ jobs:
               pr.head.ref !== "dependabot-combined-prs"
             );
             for (const pr of originalPRs) {
-              core.info(`Closing PR #${pr.number} and deleting branch ${pr.head.ref}`);
-              await github.rest.pulls.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pr.number,
-                state: "closed"
-              });
-              try {
-                await github.rest.git.deleteRef({
+              let dependencyName = "";
+              // Suponemos que el título de la PR sigue el patrón "Bump <dependency> from ..."
+              const match = pr.title.match(/Bump\s+([\w\.\-\/]+)/);
+              if (match) {
+                dependencyName = match[1];
+              }
+              // Si se ha actualizado la dependencia (es decir, no está en la lista de fallos) se cierra la PR
+              if (dependencyName && !failedDeps.includes(dependencyName)) {
+                core.info(`Closing PR #${pr.number} for dependency ${dependencyName} (applied update).`);
+                await github.rest.pulls.update({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  ref: `heads/${pr.head.ref}`
+                  pull_number: pr.number,
+                  state: "closed"
                 });
-              } catch (error) {
-                core.warning(`Could not delete branch ${pr.head.ref}: ${error.message}`);
+                try {
+                  await github.rest.git.deleteRef({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: `heads/${pr.head.ref}`
+                  });
+                } catch (error) {
+                  core.warning(`Could not delete branch ${pr.head.ref}: ${error.message}`);
+                }
+              } else {
+                core.info(`Leaving PR #${pr.number} open for dependency ${dependencyName} (update not applied).`);
               }
             }
