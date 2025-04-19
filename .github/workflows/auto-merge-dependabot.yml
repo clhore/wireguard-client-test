@@ -119,6 +119,29 @@ jobs:
               core.info(`⏭ PR #${prNumber} no fusionado (autor: ${author})`);
             }
 
+      - name: Delete combined branch if merged
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = Number('${{ needs.combine-dependabot-prs.outputs.pr_number }}');
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            if (pr.merged) {
+              core.info("PR has been merged. Deleting combined branch...");
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'heads/dependabot-combined-prs'
+              });
+            } else {
+              core.info("PR not merged. Keeping combined branch.");
+            }
+
+      
       - name: Close and delete combined branch if merged
         uses: actions/github-script@v7
         with:
