@@ -11,7 +11,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/vishvananda/netlink v1.3.0 // indirect
-	github.com/vishvananda/netns v0.0.4 // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
