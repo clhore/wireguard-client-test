@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/srv"
+    schedule:
+      interval: "weekly"
+    target-branch: "master"
+    open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "golang.org/x/net"
+        versions:
+          - "0.39.0"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
