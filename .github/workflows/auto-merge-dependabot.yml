@@ -32,20 +32,20 @@ jobs:
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
 
-    delete-combined-branch:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Checkout repository
-          uses: actions/checkout@v3
-
-        - name: Delete 'dependabot-combined-prs' branch if it exists
-          run: |
-            if git ls-remote --exit-code --heads origin dependabot-combined-prs; then
-              git push origin --delete dependabot-combined-prs
-              echo "Deleted 'dependabot-combined-prs' branch."
-            else
-              echo "'dependabot-combined-prs' branch does not exist."
-            fi
+  delete-combined-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Delete 'dependabot-combined-prs' branch if it exists
+        run: |
+          if git ls-remote --exit-code --heads origin dependabot-combined-prs; then
+            git push origin --delete dependabot-combined-prs
+            echo "Deleted 'dependabot-combined-prs' branch."
+          else
+            echo "'dependabot-combined-prs' branch does not exist."
+          fi
 
   get-prs-without-conflicts:
     needs: check-dependabot-prs
