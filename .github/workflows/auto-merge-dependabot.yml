@@ -119,7 +119,7 @@ jobs:
               core.info(`⏭ PR #${prNumber} no fusionado (autor: ${author})`);
             }
 
-      - name: Delete combined branch if merged
+      - name: Close and delete combined branch if merged
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -130,43 +130,36 @@ jobs:
               repo: context.repo.repo,
               pull_number: prNumber
             });
-            if (pr.merged) {
-              core.info("PR has been merged. Deleting combined branch...");
-              await github.rest.git.deleteRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: 'heads/dependabot-combined-prs'
-              });
-            } else {
-              core.info("PR not merged. Keeping combined branch.");
-            }
 
-      - name: Cleanup original Dependabot PRs (delete branches for merged PRs)
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BOT_PAT }}
-          script: |
-            // Listamos las PRs cerradas para Dependabot (excepto la combinada)
-            const { data: closedPRs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "closed"
-            });
-            const dependabotMergedPRs = closedPRs.filter(pr =>
-              pr.user.login === "dependabot[bot]" &&
-              pr.head.ref !== "dependabot-combined-prs" &&
-              pr.merged_at !== null
-            );
-            core.info(`Found ${dependabotMergedPRs.length} merged Dependabot PR(s) to cleanup.`);
-            for (const pr of dependabotMergedPRs) {
-              core.info(`Deleting branch for merged PR #${pr.number} (${pr.head.ref})`);
+            const body = pr.body;
+            const prNumbers = [...body.matchAll(/#(\d+)/g)].map(match => Number(match[1]));
+
+            for (const number of prNumbers) {
               try {
+                // Cerrar la PR original
+                await github.rest.pulls.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: number,
+                  state: 'closed'
+                });
+                core.info(`PR #${number} cerrada.`);
+
+                // Obtener información de la PR para eliminar la rama
+                const { data: originalPr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: number
+                });
+
+                const branchRef = `heads/${originalPr.head.ref}`;
                 await github.rest.git.deleteRef({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  ref: `heads/${pr.head.ref}`
+                  ref: branchRef
                 });
+                core.info(`Rama ${branchRef} eliminada.`);
               } catch (error) {
-                core.warning(`Could not delete branch ${pr.head.ref}: ${error.message}`);
+                core.warning(`No se pudo cerrar o eliminar la PR #${number}: ${error.message}`);
               }
             }
