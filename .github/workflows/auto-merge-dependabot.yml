@@ -33,7 +33,6 @@ jobs:
           result-encoding: string
 
     delete-combined-branch:
-      name: Delete Combined Branch
       runs-on: ubuntu-latest
       steps:
         - name: Checkout repository
