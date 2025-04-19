@@ -3,23 +3,18 @@ name: Combine and Auto-Merge Dependabot PRs
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 1'  # Lunes a las 3:00 AM UTC
+    - cron: '0 3 * * 6'
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  combine-and-automerge:
+  check-dependabot-prs:
     runs-on: ubuntu-latest
-    concurrency:
-      group: "dependabot-combine-${{ github.ref }}"
-      cancel-in-progress: false
-
+    outputs:
+      found: ${{ steps.check_prs.outputs.result }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
       - name: Check if Dependabot PRs exist
         id: check_prs
         uses: actions/github-script@v7
@@ -37,23 +32,31 @@ jobs:
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
 
-      - name: Stop if no Dependabot PRs found
-        if: steps.check_prs.outputs.result == 'false'
-        run: echo "No Dependabot PRs found. Exiting..." && exit 0
+  combine-dependabot-prs:
+    needs: check-dependabot-prs
+    if: needs.check-dependabot-prs.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: "dependabot-combine-${{ github.ref }}"
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Clean combined branch if exists
         run: |
           git fetch origin dependabot-combined-prs || true
           git push origin --delete dependabot-combined-prs || true
 
-      - name: Combine Dependabot PRs (usando github-actions)
+      - name: Combine Dependabot PRs
         continue-on-error: true
         uses: mAAdhaTTah/combine-dependabot-prs@main
         with:
           branchPrefix: dependabot
           mustBeGreen: true
           combineBranchName: dependabot-combined-prs
-          baseBranch: master
+          baseBranch: debian/master
           openPR: true
           allowSkipped: true
           ignoreLabel: nocombine
@@ -77,20 +80,26 @@ jobs:
             core.setOutput("pr_number", prs[0].number);
           result-encoding: string
 
+  automerge-dependabot-prs:
+    needs: combine-dependabot-prs
+    if: needs.combine-dependabot-prs.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Auto-approve with Bot Token
-        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        if: ${{ needs.combine-dependabot-prs.outputs.pr_number != '' }}
         uses: hmarr/auto-approve-action@v4
         with:
           github-token: ${{ secrets.BOT_PAT }}
-          pull-request-number: ${{ steps.get_pr_info.outputs.pr_number }}
+          pull-request-number: ${{ needs.combine-dependabot-prs.outputs.pr_number }}
 
       - name: Merge Combined PR (solo si autor es github-actions o dependabot)
-        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        if: ${{ needs.combine-dependabot-prs.outputs.pr_number != '' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT_PAT }}
           script: |
-            const prNumber = parseInt('${{ steps.get_pr_info.outputs.pr_number }}');
+            const prNumber = parseInt('${{ needs.combine-dependabot-prs.outputs.pr_number }}');
 
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -114,12 +123,12 @@ jobs:
             }
 
       - name: Delete combined branch if merged
-        if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
+        if: ${{ needs.combine-dependabot-prs.outputs.pr_number != '' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prNumber = Number('${{ steps.get_pr_info.outputs.pr_number }}');
+            const prNumber = Number('${{ needs.combine-dependabot-prs.outputs.pr_number }}');
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -136,7 +145,6 @@ jobs:
             } else {
               core.info("PR not merged. Keeping combined branch.");
             }
-
 
       - name: Close original Dependabot PRs and delete branches
         if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
