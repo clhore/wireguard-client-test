@@ -3,23 +3,18 @@ name: Combine and Auto-Merge Dependabot PRs
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 1'  # Lunes a las 3:00 AM UTC
+    - cron: '0 3 * * 6'
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  combine-and-automerge:
+  check-dependabot-prs:
     runs-on: ubuntu-latest
-    concurrency:
-      group: "dependabot-combine-${{ github.ref }}"
-      cancel-in-progress: false
-
+    outputs:
+      found: ${{ steps.check_prs.outputs.result }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
       - name: Check if Dependabot PRs exist
         id: check_prs
         uses: actions/github-script@v7
@@ -37,16 +32,24 @@ jobs:
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
 
-      - name: Stop if no Dependabot PRs found
-        if: steps.check_prs.outputs.result == 'false'
-        run: echo "No Dependabot PRs found. Exiting..." && exit 0
+  combine-and-automerge:
+    needs: check-dependabot-prs
+    if: needs.check-dependabot-prs.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: "dependabot-combine-${{ github.ref }}"
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Clean combined branch if exists
         run: |
           git fetch origin dependabot-combined-prs || true
           git push origin --delete dependabot-combined-prs || true
 
-      - name: Combine Dependabot PRs (usando github-actions)
+      - name: Combine Dependabot PRs
         continue-on-error: true
         uses: mAAdhaTTah/combine-dependabot-prs@main
         with:
@@ -136,7 +139,6 @@ jobs:
             } else {
               core.info("PR not merged. Keeping combined branch.");
             }
-
 
       - name: Close original Dependabot PRs and delete branches
         if: ${{ steps.get_pr_info.outputs.pr_number != '' }}
