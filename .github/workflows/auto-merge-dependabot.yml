@@ -57,7 +57,7 @@ jobs:
           branchPrefix: dependabot
           mustBeGreen: true
           combineBranchName: dependabot-combined-prs
-          baseBranch: master
+          baseBranch: debian/master
           openPR: true
           allowSkipped: true
           ignoreLabel: nocombine
