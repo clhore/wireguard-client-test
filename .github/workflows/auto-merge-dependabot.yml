@@ -57,7 +57,7 @@ jobs:
           fi
           
   combine-dependabot-prs:
-    needs: check-dependabot-prs
+    needs: get-prs-without-conflicts
     if: needs.get-prs-without-conflicts.outputs.conflicts == 'true'
     runs-on: ubuntu-latest
     outputs:
