@@ -31,10 +31,34 @@ jobs:
             core.info(`Found ${dependabotPRs.length} Dependabot PR(s).`);
             return dependabotPRs.length > 0 ? "true" : "false";
           result-encoding: string
+
+  get-prs-without-conflicts:
+    needs: check-dependabot-prs
+    if: needs.check-dependabot-prs.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      conflicts: ${{ steps.set_output.outputs.conflicts }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Find merge conflicts
+        id: find_conflicts
+        uses: olivernybroe/action-conflict-finder@v4.0
+        continue-on-error: true
+
+      - name: Set output for PRs without conflicts
+        id: set_output
+        run: |
+          if [ "${{ steps.find_conflicts.outcome }}" == "success" ]; then
+            echo "conflicts=true" >> $GITHUB_OUTPUT
+          else
+            echo "conflicts=false" >> $GITHUB_OUTPUT
+          fi
           
   combine-dependabot-prs:
     needs: check-dependabot-prs
-    if: needs.check-dependabot-prs.outputs.found == 'true'
+    if: needs.get-prs-without-conflicts.outputs.conflicts == 'true'
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.get_pr_info.outputs.pr_number }}
