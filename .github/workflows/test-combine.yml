@@ -1,0 +1,27 @@
+name: Combinar PRs de Dependabot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  combine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Ejecutar lógica de combinación
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_BRANCH: master
+          COMBINE_BRANCH: combine-dependabot
+          BRANCH_PREFIX: dependabot
+        run: node combine-dependabot.js
