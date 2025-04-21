@@ -1,0 +1,19 @@
+{
+    "name": "combine-dependabot",
+    "version": "1.0.0",
+    "description": "Script para combinar pull requests de Dependabot utilizando cherry-pick.",
+    "main": "combine-dependabot.js",
+    "scripts": {
+      "start": "node combine-dependabot.js"
+    },
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+      "@actions/github": "^5.0.2",
+      "execa": "^7.1.1"
+    },
+    "engines": {
+      "node": ">=14.0.0"
+    }
+  }
+  
