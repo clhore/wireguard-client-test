@@ -50,21 +50,21 @@ jobs:
           git status
           git log --oneline -n 5
 
-      - name: Fusionar combine-dependabot en master
-        run: |
-          git checkout master
-          git merge combine-dependabot --no-ff --no-edit
-
-      - name: Verificar estado del repositorio después del merge
-        run: |
-          echo "Estado del repositorio después del merge"
-          git status
-          git log --oneline -n 5
-
-      - name: Empujar cambios a master
-        run: |
-          git push origin master
-
+      #- name: Fusionar combine-dependabot en master
+      #  run: |
+      #    git checkout master
+      #    git merge combine-dependabot --no-ff --no-edit
+#
+      #- name: Verificar estado del repositorio después del merge
+      #  run: |
+      #    echo "Estado del repositorio después del merge"
+      #    git status
+      #    git log --oneline -n 5
+#
+      #- name: Empujar cambios a master
+      #  run: |
+      #    git push origin master
+#
       - name: Verificar archivo combinado
         run: |
           cat $OUTPUT_JSON
