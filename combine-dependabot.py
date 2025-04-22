@@ -153,10 +153,10 @@ def main():
         failed_prs.append({
             "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
 
-    #if push_branch():
-    #create_pull_request(pr_list_text)
-    #else:
-    #    print("No se realizaron cambios reales. No se creó una nueva PR.")
+    if push_branch():
+        create_pull_request(pr_list_text)
+    else:
+        print("No se realizaron cambios reales. No se creó una nueva PR.")
 
     if OUTPUT_JSON:
         with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
