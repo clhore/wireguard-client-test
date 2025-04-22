@@ -61,9 +61,33 @@ def get_dependabot_prs():
 
     return [pr for pr in pulls if pr["head"]["ref"].startswith(BRANCH_PREFIX)]
 
+def commit_already_applied(commit_sha):
+    """Verifica si el commit ya ha sido aplicado en la rama actual."""
+    try:
+        subprocess.run(["git", "merge-base", "--is-ancestor", commit_sha, "HEAD"], check=True)
+        print(f"El commit {commit_sha} ya está presente en la rama.")
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def get_commit_diff(commit_sha):
+    """Obtiene el diff del commit para verificar si tiene cambios efectivos."""
+    diff = run_git("diff", f"{commit_sha}^!", check=False)
+    return diff.strip()
+
 def cherry_pick_pr(pr):
     commit_sha = pr["head"]["sha"]
     pr_number = pr["number"]
+
+    if commit_already_applied(commit_sha):
+        print(f"PR #{pr_number} ya ha sido aplicada. Omitiendo.")
+        return False
+
+    diff = get_commit_diff(commit_sha)
+    if not diff:
+        print(f"PR #{pr_number} no tiene cambios efectivos. Omitiendo.")
+        return False
+
     print(f"Realizando cherry-pick del commit {commit_sha} de la PR #{pr_number}...")
     try:
         subprocess.run(["git", "cherry-pick", commit_sha], check=True)
@@ -115,7 +139,7 @@ def create_pull_request(pr_list_text):
 def main():
     auth_git()
     setup_repository()
-    
+
     prs = get_dependabot_prs()
     if not prs:
         print("No se encontraron PRs de Dependabot para combinar.")
