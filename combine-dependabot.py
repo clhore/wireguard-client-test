@@ -79,15 +79,6 @@ def cherry_pick_pr(pr):
     commit_sha = pr["head"]["sha"]
     pr_number = pr["number"]
 
-    if commit_already_applied(commit_sha):
-        print(f"PR #{pr_number} ya ha sido aplicada. Omitiendo.")
-        return False
-
-    diff = get_commit_diff(commit_sha)
-    if not diff:
-        print(f"PR #{pr_number} no tiene cambios efectivos. Omitiendo.")
-        return False
-
     print(f"Realizando cherry-pick del commit {commit_sha} de la PR #{pr_number}...")
     try:
         subprocess.run(["git", "cherry-pick", commit_sha], check=True)
@@ -148,20 +139,24 @@ def main():
     pr_list_text = ""
     combined_prs = []
     failed_prs = []
+    omitted_prs = []
+
     for pr in prs:
         print(f"Procesando PR #{pr['number']} - {pr['title']}")
+
+        if commit_already_applied(pr["head"]["sha"]) or not get_commit_diff(pr["head"]["sha"]):
+            print(f"PR #{pr["number"]} ya ha sido aplicada o no tiene cambios efectibos. Omitiendo.")
+            omitted_prs.append({
+                "number": pr["number"], "title": pr["title"], "url": pr["html_url"]});
+            continue
+        
         if cherry_pick_pr(pr):
             combined_prs.append({
-                "number": pr["number"],
-                "title": pr["title"],
-                "url": pr["html_url"]
-            }); continue
+                "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
+            continue
 
         failed_prs.append({
-            "number": pr["number"],
-            "title": pr["title"],
-            "url": pr["html_url"]
-        })
+            "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
 
     if push_branch():
         create_pull_request(pr_list_text)
@@ -173,6 +168,7 @@ def main():
             json.dump({
                 "combined_prs": combined_prs,
                 "failed_prs": failed_prs,
+                "omitted_prs": omitted_prs,
                 "branch": COMBINE_BRANCH,
                 "base": BASE_BRANCH
             }, f, indent=2)
