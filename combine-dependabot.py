@@ -199,7 +199,7 @@ def main():
             "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
 
     if push_branch():
-        create_pull_request(pr_list_text)
+        pr_combine = create_pull_request(pr_list_text)
     else:
         logger.info("No real changes were made. No new PR was created.")
 
@@ -209,6 +209,7 @@ def main():
                 "combined_prs": combined_prs,
                 "failed_prs": failed_prs,
                 "omitted_prs": omitted_prs,
+                "pr_combine": pr_combine,
                 "branch": COMBINE_BRANCH,
                 "base": BASE_BRANCH
             }, f, indent=2)
