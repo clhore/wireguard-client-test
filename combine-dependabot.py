@@ -17,8 +17,8 @@ if not GITHUB_TOKEN or not REPO:
     sys.exit(1)
 
 def auth_git():
-    subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
-    subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
+    subprocess.run(["git", "config", "--global", "user.name", "clhore"], check=True)
+    subprocess.run(["git", "config", "--global", "user.email", "adria7904@gmail.com"], check=True)
 
 def run_git(*args, check=True):
     """Ejecuta un comando de git y devuelve su salida."""
