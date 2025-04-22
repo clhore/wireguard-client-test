@@ -16,7 +16,7 @@ GIT_USERNAME = os.environ.get("GIT_USERNAME", "dependabot[bot]")
 GIT_EMAIL = os.environ.get("GIT_EMAIL", "dependabot[bot]@users.noreply.github.com")
 BASE_BRANCH = os.environ.get("BASE_BRANCH", "main")
 COMBINE_BRANCH = os.environ.get("COMBINE_BRANCH", "combine-dependabot")
-BRANCH_PREFIX = os.environ.get("BRANCH_PREFIX", "dependabot")
+PR_USER = os.environ.get("PR_USER", "dependabot[bot]")
 REPO = os.environ.get("GITHUB_REPOSITORY")
 OUTPUT_JSON = os.environ.get("OUTPUT_JSON", "")
 
@@ -74,7 +74,7 @@ def setup_repository():
     return True
 
 def get_dependabot_prs() -> list:
-    logger.info(f"Fetching open PRs based on '{BASE_BRANCH}' with head starting with '{BRANCH_PREFIX}'...")
+    logger.info(f"Fetching open PRs based on '{BASE_BRANCH}' with head starting with '{PR_USER}'...")
     owner, repo = REPO.split("/")
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&base={BASE_BRANCH}"
     headers = {
@@ -86,7 +86,9 @@ def get_dependabot_prs() -> list:
     response.raise_for_status()
     pulls = response.json()
     
-    return [pr for pr in pulls if pr["head"]["ref"].startswith(BRANCH_PREFIX)]
+    return [
+        pr for pr in pulls if pr["user"]["login"] == PR_USER
+    ]
 
 def commit_already_applied(commit_sha) -> bool:
     try:

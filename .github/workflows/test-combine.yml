@@ -8,10 +8,12 @@ permissions:
   pull-requests: write
 
 jobs:
-  combine:
+  combine-dependabot-prs:
     runs-on: ubuntu-latest
     env:
-      OUTPUT_JSON: combinado.json  # Ruta donde se guardará el archivo JSON
+      TARGET_BRANCH: master
+      COMBINE_BRANCH: combine-dependabot
+      OUTPUT_JSON: combinado.json
 
     steps:
       - name: Clonar el repositorio
@@ -34,10 +36,16 @@ jobs:
           GIT_USERNAME: ${{ github.actor }}
           GIT_EMAIL: ${{ github.actor }}@users.noreply.github.com
           GITHUB_REPOSITORY: ${{ github.repository }}
-          BASE_BRANCH: master
-          COMBINE_BRANCH: combine-dependabot
-          BRANCH_PREFIX: dependabot
+          BASE_BRANCH: ${{ env.TARGET_BRANCH }}
+          COMBINE_BRANCH: ${{ env.COMBINE_BRANCH }}
+          PR_USER: dependabot[bot]
           OUTPUT_JSON: ${{ env.OUTPUT_JSON }}
+
+      - name: Cargar archivo JSON como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultado-combinado
+          path: combinado.json
 
       - name: Verificar estado del repositorio antes del merge
         run: |
