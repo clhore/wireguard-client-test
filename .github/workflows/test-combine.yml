@@ -25,7 +25,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          BASE_BRANCH: debian/master
+          BASE_BRANCH: master
           COMBINE_BRANCH: combine-dependabot
           BRANCH_PREFIX: dependabot
           OUTPUT_JSON: ${{ env.OUTPUT_JSON }}  # Ruta donde se guardará el archivo JSON}
