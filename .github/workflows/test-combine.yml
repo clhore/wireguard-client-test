@@ -33,8 +33,10 @@ jobs:
         run: python combine-dependabot.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GIT_USERNAME: ${{ github.actor }}
-          GIT_EMAIL: ${{ github.actor }}@users.noreply.github.com
+          #GIT_USERNAME: ${{ github.actor }}
+          #GIT_EMAIL: ${{ github.actor }}@users.noreply.github.com
+          GIT_USERNAME: dependabot[bot]
+          GIT_EMAIL: dependabot[bot]@users.noreply.github.com
           GITHUB_REPOSITORY: ${{ github.repository }}
           BASE_BRANCH: ${{ env.TARGET_BRANCH }}
           COMBINE_BRANCH: ${{ env.COMBINE_BRANCH }}
