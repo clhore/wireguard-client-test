@@ -100,7 +100,7 @@ def push_branch():
     return True
 
 def create_pull_request(pr_list_text):
-    #if not pr_list_text:
+    #if not pr_list_text:z
     #    print("No se encontraron PRs para combinar, no se creará ninguna nueva PR.")
     #    return
     owner, repo = REPO.split("/")
@@ -148,6 +148,7 @@ def main():
         if cherry_pick_pr(pr):
             combined_prs.append({
                 "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
+            pr_list_text += f"- #{pr['number']} {pr['title']} ({pr['html_url']})\n"
             continue
 
         failed_prs.append({
