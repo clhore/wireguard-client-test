@@ -6,28 +6,23 @@ import json
 import requests
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GIT_USERNAME = os.environ.get("GIT_USERNAME", "dependabot[bot]")
+GIT_EMAIL = os.environ.get("GIT_EMAIL", "dependabot[bot]@users.noreply.github.com")
 BASE_BRANCH = os.environ.get("BASE_BRANCH", "debian/master")
 COMBINE_BRANCH = os.environ.get("COMBINE_BRANCH", "combine-dependabot")
 BRANCH_PREFIX = os.environ.get("BRANCH_PREFIX", "dependabot")
 REPO = os.environ.get("GITHUB_REPOSITORY")
 OUTPUT_JSON = os.environ.get("OUTPUT_JSON", "")
 
-if not GITHUB_TOKEN or not REPO:
-    print("Error: Asegúrate de que GITHUB_TOKEN y GITHUB_REPOSITORY estén definidos.")
-    sys.exit(1)
-
 def auth_git():
-    subprocess.run(["git", "config", "--global", "user.name", "clhore"], check=True)
-    subprocess.run(["git", "config", "--global", "user.email", "adria7904@gmail.com"], check=True)
+    subprocess.run(["git", "config", "--global", "user.name", GIT_USERNAME], check=True)
+    subprocess.run(["git", "config", "--global", "user.email", GIT_EMAIL], check=True)
 
 def run_git(*args, check=True):
-    """Ejecuta un comando de git y devuelve su salida."""
-    print("Ejecutando git", args)
     result = subprocess.run(["git"] + list(args), check=check, text=True, capture_output=True)
     return result.stdout.strip()
 
 def branch_exists_remote(branch_name):
-    """Verifica si una rama existe en el remoto."""
     try:
         output = run_git("ls-remote", "--heads", "origin", branch_name)
         return bool(output)
@@ -35,7 +30,6 @@ def branch_exists_remote(branch_name):
         return False
 
 def setup_repository():
-    """Configura la rama para combinar los cambios."""
     print(f"Configurando la rama '{COMBINE_BRANCH}' basada en '{BASE_BRANCH}'...")
     run_git("fetch", "--all")
     if branch_exists_remote(COMBINE_BRANCH):
@@ -165,10 +159,10 @@ def main():
         failed_prs.append({
             "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
 
-    if push_branch():
-        create_pull_request(pr_list_text)
-    else:
-        print("No se realizaron cambios reales. No se creó una nueva PR.")
+    #if push_branch():
+    create_pull_request(pr_list_text)
+    #else:
+    #    print("No se realizaron cambios reales. No se creó una nueva PR.")
 
     if OUTPUT_JSON:
         with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
@@ -182,6 +176,10 @@ def main():
         print(f"Resultado guardado en {OUTPUT_JSON}")
 
 if __name__ == "__main__":
+    if not GITHUB_TOKEN or not REPO:
+        print("Error: Asegúrate de que GITHUB_TOKEN y GITHUB_REPOSITORY estén definidos.")
+        sys.exit(1)
+
     try:
         main()
     except Exception as e:
