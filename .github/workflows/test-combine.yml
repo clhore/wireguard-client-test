@@ -15,6 +15,7 @@ jobs:
 
     steps:
       - name: Clonar el repositorio
+        uses: actions/checkout@v3
         with:
           token: ${{ secrets.BOT_PAT }}
 
