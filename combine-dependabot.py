@@ -97,9 +97,9 @@ def has_changes():
     return int(ahead.strip()) > 0
 
 def push_branch():
-    #if not has_changes():
-    #    print("No hay cambios para empujar. Se omite el push.")
-    #    return False
+    if not has_changes():
+        print("No hay cambios para empujar. Se omite el push.")
+        return False
     print(f"Empujando la rama '{COMBINE_BRANCH}' a origin...")
     run_git("push", "-u", "origin", COMBINE_BRANCH), "--force"
     return True
