@@ -192,7 +192,7 @@ def main():
         if cherry_pick_pr(pr):
             combined_prs.append({
                 "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
-            pr_list_text += f"- #{pr['number']} {pr['title']}\n" # ({pr['html_url']})\n"
+            pr_list_text += f"- #{pr['number']}\n" #{pr['title']} ({pr['html_url']})\n"
             continue
     
         failed_prs.append({
