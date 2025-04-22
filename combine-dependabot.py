@@ -4,25 +4,37 @@ import subprocess
 import sys
 import json
 import requests
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger(__name__)
+
+# Environment variables
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GIT_USERNAME = os.environ.get("GIT_USERNAME", "dependabot[bot]")
 GIT_EMAIL = os.environ.get("GIT_EMAIL", "dependabot[bot]@users.noreply.github.com")
-BASE_BRANCH = os.environ.get("BASE_BRANCH", "debian/master")
+BASE_BRANCH = os.environ.get("BASE_BRANCH", "main")
 COMBINE_BRANCH = os.environ.get("COMBINE_BRANCH", "combine-dependabot")
 BRANCH_PREFIX = os.environ.get("BRANCH_PREFIX", "dependabot")
 REPO = os.environ.get("GITHUB_REPOSITORY")
 OUTPUT_JSON = os.environ.get("OUTPUT_JSON", "")
 
 def auth_git():
+    """Configure Git with the provided username and email."""
     subprocess.run(["git", "config", "--global", "user.name", GIT_USERNAME], check=True)
     subprocess.run(["git", "config", "--global", "user.email", GIT_EMAIL], check=True)
 
 def run_git(*args, check=True):
-    result = subprocess.run(["git"] + list(args), check=check, text=True, capture_output=True)
-    return result.stdout.strip()
+    """Run a Git command and return its output."""
+    try:
+        result = subprocess.run(["git"] + list(args), check=check, text=True, capture_output=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Error executing git {' '.join(args)}: {e.stderr.strip()}")
 
 def branch_exists_remote(branch_name):
+    """Check if a remote branch exists."""
     try:
         output = run_git("ls-remote", "--heads", "origin", branch_name)
         return bool(output)
@@ -30,17 +42,25 @@ def branch_exists_remote(branch_name):
         return False
 
 def setup_repository():
-    print(f"Configurando la rama '{COMBINE_BRANCH}' basada en '{BASE_BRANCH}'...")
-    run_git("fetch", "--all")
-    if branch_exists_remote(COMBINE_BRANCH):
-        print(f"La rama remota '{COMBINE_BRANCH}' ya existe. Realizando checkout.")
-        run_git("checkout", COMBINE_BRANCH)
-        run_git("reset", "--hard", f"origin/{COMBINE_BRANCH}")
-    else:
+    """Set up the repository by checking out the combine branch based on the base branch."""
+    logger.info(f"Setting up branch '{COMBINE_BRANCH}' based on '{BASE_BRANCH}'...")
+    try:
+        run_git("fetch", "--all")
+        if branch_exists_remote(COMBINE_BRANCH):
+            logger.info(f"Remote branch '{COMBINE_BRANCH}' already exists. Checking it out.")
+            run_git("checkout", COMBINE_BRANCH)
+            run_git("reset", "--hard", f"origin/{COMBINE_BRANCH}")
+            return True
         run_git("checkout", "-B", COMBINE_BRANCH, BASE_BRANCH)
+    except RuntimeError as e:
+        raise RuntimeError(f"Error creating or switching to branch '{COMBINE_BRANCH}': {e}")
+    except Exception as e:
+        raise RuntimeError(f"Unexpected error: {str(e)}")
+    return True
 
-def get_dependabot_prs():
-    print(f"Obteniendo PRs abiertas basadas en '{BASE_BRANCH}' con head que empiece por '{BRANCH_PREFIX}'...")
+def get_dependabot_prs() -> list:
+    """Retrieve open Dependabot PRs based on the base branch and prefix."""
+    logger.info(f"Fetching open PRs based on '{BASE_BRANCH}' with head starting with '{BRANCH_PREFIX}'...")
     owner, repo = REPO.split("/")
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&base={BASE_BRANCH}"
     headers = {
@@ -51,81 +71,90 @@ def get_dependabot_prs():
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     pulls = response.json()
-
+    
     return [pr for pr in pulls if pr["head"]["ref"].startswith(BRANCH_PREFIX)]
 
-def commit_already_applied(commit_sha):
+def commit_already_applied(commit_sha) -> bool:
+    """Check if a commit has already been applied to the current branch."""
     try:
         subprocess.run(["git", "merge-base", "--is-ancestor", commit_sha, "HEAD"], check=True)
-        print(f"El commit {commit_sha} ya está presente en la rama.")
+        logger.info(f"Commit {commit_sha} is already present in the branch.")
         return True
     except subprocess.CalledProcessError:
         return False
 
-def get_commit_diff(commit_sha):
+def get_commit_diff(commit_sha) -> str:
+    """Get the diff of a specific commit."""
     diff = run_git("diff", f"{commit_sha}^!", check=False)
     return diff.strip()
 
-def cherry_pick_pr(pr):
+def cherry_pick_pr(pr) -> bool:
+    """Attempt to cherry-pick a PR's commit into the current branch."""
     commit_sha = pr["head"]["sha"]
     pr_number = pr["number"]
-
-    print(f"Realizando cherry-pick del commit {commit_sha} de la PR #{pr_number}...")
+    logger.info(f"Cherry-picking commit {commit_sha} from PR #{pr_number}...")
     try:
         subprocess.run([
             "git", "cherry-pick", "--strategy=recursive", "-X", "theirs",
             "--empty=drop", commit_sha
         ], check=True)
-        print(f"Cherry-pick completado para el commit {commit_sha}")
+        logger.info(f"Cherry-pick completed for commit {commit_sha}")
         return True
     except subprocess.CalledProcessError:
-        print(f"Conflicto detectado para la PR #{pr_number}, omitiendo commit...")
+        logger.warning(f"Conflict detected for PR #{pr_number}, skipping commit...")
         subprocess.run(["git", "cherry-pick", "--skip"], check=False)
         return False
 
-def has_changes():
+def has_changes() -> bool:
+    """Determine if there are changes to be pushed."""
     status = run_git("status", "--porcelain")
     if status.strip():
         return True
-
+    
     try:
         upstream = run_git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
     except subprocess.CalledProcessError:
         return True
-
+    
     ahead = run_git("rev-list", "--count", "--left-only", f"{upstream}...HEAD")
     return int(ahead.strip()) > 0
 
-def push_branch():
+def push_branch() -> bool:
+    """Push the current branch to the remote repository."""
     if not has_changes():
-        print("No hay cambios para empujar. Se omite el push.")
+        logger.info("No changes to push. Skipping push.")
         return False
-    print(f"Empujando la rama '{COMBINE_BRANCH}' a origin...")
-    run_git("push", "-u", "origin", COMBINE_BRANCH), "--force"
+    logger.info(f"Pushing branch '{COMBINE_BRANCH}' to origin...")
+    run_git("push", "-u", "origin", COMBINE_BRANCH, "--force")
     return True
 
 def create_pull_request(pr_list_text):
+    """Create a new pull request combining multiple Dependabot PRs."""
     if not pr_list_text:
-        print("No se encontraron PRs para combinar, no se creará ninguna nueva PR.")
+        logger.info("No PRs found to combine. No new PR will be created.")
         return
     owner, repo = REPO.split("/")
-    title = "Combinar Dependabot: actualizaciones consolidadas"
-    body = f"Esta pull request fue creada automáticamente combinando las siguientes PRs de Dependabot:\n\n{pr_list_text}"
+    title = "Combine Dependabot: Consolidated Updates"
+    body = f"This pull request was automatically created by combining the following Dependabot PRs:\n\n{pr_list_text}"
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
+    
     data = {
         "title": title,
         "head": COMBINE_BRANCH,
         "base": BASE_BRANCH,
         "body": body
     }
+
     response = requests.post(url, headers=headers, data=json.dumps(data))
     response.raise_for_status()
     pr = response.json()
-    print("Pull Request creada:", pr.get("html_url"))
+
+    logger.info(f"Pull Request created: {pr.get('html_url')}")
+    return pr
 
 def main():
     auth_git()
@@ -133,7 +162,7 @@ def main():
 
     prs = get_dependabot_prs()
     if not prs:
-        print("No se encontraron PRs de Dependabot para combinar.")
+        logger.info("No Dependabot PRs found to combine.")
         return
 
     pr_list_text = ""
@@ -142,27 +171,26 @@ def main():
     omitted_prs = []
 
     for pr in prs:
-        print(f"Procesando PR #{pr['number']} - {pr['title']}")
-
+        logger.info(f"Processing PR #{pr['number']} - {pr['title']}")
         if commit_already_applied(pr["head"]["sha"]) or not get_commit_diff(pr["head"]["sha"]):
-            print(f"PR #{pr['number']} ya ha sido aplicada o no tiene cambios efectivos. Omitiendo.")
+            logger.info(f"PR #{pr['number']} has already been applied or has no effective changes. Skipping.")
             omitted_prs.append({
-                "number": pr["number"], "title": pr["title"], "url": pr["html_url"]});
+                "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
             continue
-        
+    
         if cherry_pick_pr(pr):
             combined_prs.append({
                 "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
             pr_list_text += f"- #{pr['number']} {pr['title']} ({pr['html_url']})\n"
             continue
-
+    
         failed_prs.append({
             "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
 
     if push_branch():
         create_pull_request(pr_list_text)
     else:
-        print("No se realizaron cambios reales. No se creó una nueva PR.")
+        logger.info("No real changes were made. No new PR was created.")
 
     if OUTPUT_JSON:
         with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
@@ -173,15 +201,15 @@ def main():
                 "branch": COMBINE_BRANCH,
                 "base": BASE_BRANCH
             }, f, indent=2)
-        print(f"Resultado guardado en {OUTPUT_JSON}")
+        logger.info(f"Result saved to {OUTPUT_JSON}")
 
 if __name__ == "__main__":
     if not GITHUB_TOKEN or not REPO:
-        print("Error: Asegúrate de que GITHUB_TOKEN y GITHUB_REPOSITORY estén definidos.")
+        logger.error("Error: Ensure that GITHUB_TOKEN and GITHUB_REPOSITORY are defined.")
         sys.exit(1)
 
     try:
         main()
     except Exception as e:
-        print("Error durante la combinación de PRs:", str(e))
+        logger.exception("Error during PR combination: %s", str(e))
         sys.exit(1)
