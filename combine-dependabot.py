@@ -29,8 +29,8 @@ def run_git(*args, check=True):
 
 def auth_git():
     try:
-        run_git("git", "config", "--global", "user.name", GIT_USERNAME)
-        run_git("git", "config", "--global", "user.email", GIT_EMAIL)
+        run_git("config", "--global", "user.name", GIT_USERNAME)
+        run_git("config", "--global", "user.email", GIT_EMAIL)
         logger.info("git authentication configured")
         return True
     except RuntimeError:
@@ -41,7 +41,7 @@ def auth_git():
 
 def config_git():
     try:
-        run_git("git", "config", "--global", "push.autoSetupRemote", "always")
+        run_git("config", "--global", "push.autoSetupRemote", "always")
         logger.info("Git config set for autoSetupRemote always.")
         return True
     except RuntimeError:
@@ -166,9 +166,9 @@ def create_pull_request(pr_list_text):
 
 def main():
     auth_git()
-    #if not config_git():
-    #    logger.error("failed to configure git. Exiting.")
-    #    return
+    if not config_git():
+        logger.error("failed to configure git. Exiting.")
+        return
     setup_repository()
 
     prs = get_dependabot_prs()
