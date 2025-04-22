@@ -166,9 +166,9 @@ def create_pull_request(pr_list_text):
 
 def main():
     auth_git()
-    if not config_git():
-        logger.error("failed to configure git. Exiting.")
-        return
+    #if not config_git():
+    #    logger.error("failed to configure git. Exiting.")
+    #    return
     setup_repository()
 
     prs = get_dependabot_prs()
