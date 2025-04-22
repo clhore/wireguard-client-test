@@ -40,7 +40,6 @@ def setup_repository():
         run_git("checkout", "-B", COMBINE_BRANCH, BASE_BRANCH)
 
 def get_dependabot_prs():
-    """Obtiene las PRs abiertas con base en BASE_BRANCH y cuyo head ref inicie con BRANCH_PREFIX."""
     print(f"Obteniendo PRs abiertas basadas en '{BASE_BRANCH}' con head que empiece por '{BRANCH_PREFIX}'...")
     owner, repo = REPO.split("/")
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&base={BASE_BRANCH}"
@@ -56,7 +55,6 @@ def get_dependabot_prs():
     return [pr for pr in pulls if pr["head"]["ref"].startswith(BRANCH_PREFIX)]
 
 def commit_already_applied(commit_sha):
-    """Verifica si el commit ya ha sido aplicado en la rama actual."""
     try:
         subprocess.run(["git", "merge-base", "--is-ancestor", commit_sha, "HEAD"], check=True)
         print(f"El commit {commit_sha} ya está presente en la rama.")
@@ -65,7 +63,6 @@ def commit_already_applied(commit_sha):
         return False
 
 def get_commit_diff(commit_sha):
-    """Obtiene el diff del commit para verificar si tiene cambios efectivos."""
     diff = run_git("diff", f"{commit_sha}^!", check=False)
     return diff.strip()
 
@@ -87,7 +84,6 @@ def cherry_pick_pr(pr):
         return False
 
 def has_changes():
-    """Verifica si hay cambios locales o commits pendientes de empujar."""
     status = run_git("status", "--porcelain")
     try:
         ahead = run_git("rev-list", "--count", "--left-only", "@{u}...HEAD")
@@ -96,16 +92,14 @@ def has_changes():
     return bool(status.strip()) or int(ahead) > 0
 
 def push_branch():
-    """Empuja la rama combinada al repositorio remoto si hay cambios."""
-    if not has_changes():
-        print("No hay cambios para empujar. Se omite el push.")
-        return False
+    #if not has_changes():
+    #    print("No hay cambios para empujar. Se omite el push.")
+    #    return False
     print(f"Empujando la rama '{COMBINE_BRANCH}' a origin...")
     run_git("push", "-u", "origin", COMBINE_BRANCH), "--force"
     return True
 
 def create_pull_request(pr_list_text):
-    """Crea una nueva PR utilizando la API de GitHub con los cambios combinados."""
     if not pr_list_text:
         print("No se encontraron PRs para combinar, no se creará ninguna nueva PR.")
         return
@@ -160,7 +154,7 @@ def main():
             "number": pr["number"], "title": pr["title"], "url": pr["html_url"]})
 
     #if push_branch():
-    create_pull_request(pr_list_text)
+    #create_pull_request(pr_list_text)
     #else:
     #    print("No se realizaron cambios reales. No se creó una nueva PR.")
 
