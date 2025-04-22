@@ -20,11 +20,6 @@ BRANCH_PREFIX = os.environ.get("BRANCH_PREFIX", "dependabot")
 REPO = os.environ.get("GITHUB_REPOSITORY")
 OUTPUT_JSON = os.environ.get("OUTPUT_JSON", "")
 
-def auth_git():
-    """Configure Git with the provided username and email."""
-    subprocess.run(["git", "config", "--global", "user.name", GIT_USERNAME], check=True)
-    subprocess.run(["git", "config", "--global", "user.email", GIT_EMAIL], check=True)
-
 def run_git(*args, check=True):
     """Run a Git command and return its output."""
     try:
@@ -32,6 +27,11 @@ def run_git(*args, check=True):
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Error executing git {' '.join(args)}: {e.stderr.strip()}")
+
+def auth_git():
+    subprocess.run(["git", "config", "--global", "user.name", GIT_USERNAME], check=True)
+    subprocess.run(["git", "config", "--global", "user.email", GIT_EMAIL], check=True)
+    subprocess.run(["git", "config", "--global", "push.autoSetupRemote", "always"], check=True)
 
 def branch_exists_remote(branch_name):
     """Check if a remote branch exists."""
@@ -51,7 +51,6 @@ def setup_repository():
             run_git("checkout", COMBINE_BRANCH)
             run_git("reset", "--hard", f"origin/{COMBINE_BRANCH}")
             return True
-        run_git("checkout", "-B", COMBINE_BRANCH, BASE_BRANCH)
     except RuntimeError as e:
         raise RuntimeError(f"Error creating or switching to branch '{COMBINE_BRANCH}': {e}")
     except Exception as e:
