@@ -1,4 +1,4 @@
-name: Combinar PRs de Dependabot
+name: Combinar Dependabot
 
 on:
   workflow_dispatch:
@@ -6,22 +6,30 @@ on:
 jobs:
   combine:
     runs-on: ubuntu-latest
+    env:
+      OUTPUT_JSON: combinado.json  # Ruta donde se guardará el archivo JSON
     steps:
-      - name: Checkout del repositorio
+      - name: Clonar el repositorio
         uses: actions/checkout@v3
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v3
+      - name: Configurar Python
+        uses: actions/setup-python@v4
         with:
-          node-version: '16'
+          python-version: '3.13'
 
       - name: Instalar dependencias
-        run: npm install
+        run: pip install requests
 
-      - name: Ejecutar lógica de combinación
+      - name: Ejecutar combine-dependabot.py
+        run: python combine-dependabot.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BASE_BRANCH: master
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          BASE_BRANCH: debian/master
           COMBINE_BRANCH: combine-dependabot
           BRANCH_PREFIX: dependabot
-        run: node combine-dependabot.js
+          OUTPUT_JSON: ${{ env.OUTPUT_JSON }}  # Ruta donde se guardará el archivo JSON}
+        
+      - name: Check archivo combinado
+        run: |
+          cat $OUTPUT_JSON
