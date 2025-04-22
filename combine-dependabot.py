@@ -16,6 +16,10 @@ if not GITHUB_TOKEN or not REPO:
     print("Error: Asegúrate de que GITHUB_TOKEN y GITHUB_REPOSITORY estén definidos.")
     sys.exit(1)
 
+def auth_git():
+    subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
+    subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
+
 def run_git(*args, check=True):
     """Ejecuta un comando de git y devuelve su salida."""
     print("Ejecutando git", args)
@@ -109,7 +113,9 @@ def create_pull_request(pr_list_text):
     print("Pull Request creada:", pr.get("html_url"))
 
 def main():
+    auth_git()
     setup_repository()
+    
     prs = get_dependabot_prs()
     if not prs:
         print("No se encontraron PRs de Dependabot para combinar.")
