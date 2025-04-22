@@ -85,11 +85,16 @@ def cherry_pick_pr(pr):
 
 def has_changes():
     status = run_git("status", "--porcelain")
+    if status.strip():
+        return True
+
     try:
-        ahead = run_git("rev-list", "--count", "--left-only", "@{u}...HEAD")
+        upstream = run_git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
     except subprocess.CalledProcessError:
-        ahead = "0"
-    return bool(status.strip()) or int(ahead) > 0
+        return True
+
+    ahead = run_git("rev-list", "--count", "--left-only", f"{upstream}...HEAD")
+    return int(ahead.strip()) > 0
 
 def push_branch():
     #if not has_changes():
