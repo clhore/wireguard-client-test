@@ -81,7 +81,10 @@ def cherry_pick_pr(pr):
 
     print(f"Realizando cherry-pick del commit {commit_sha} de la PR #{pr_number}...")
     try:
-        subprocess.run(["git", "cherry-pick", commit_sha], check=True)
+        subprocess.run([
+            "git", "cherry-pick", "--strategy=recursive", "-X", "theirs",
+            "--empty=drop", commit_sha
+        ], check=True)
         print(f"Cherry-pick completado para el commit {commit_sha}")
         return True
     except subprocess.CalledProcessError:
