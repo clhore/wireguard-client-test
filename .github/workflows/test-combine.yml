@@ -17,7 +17,7 @@ jobs:
       - name: Clonar el repositorio
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.BOT_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git user
         run: |
