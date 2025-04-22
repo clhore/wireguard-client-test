@@ -35,7 +35,7 @@ jobs:
       - name: Ejecutar combine-dependabot.py
         run: python combine-dependabot.py
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_USERNAME: ${{ github.actor }}
           GIT_EMAIL: ${{ github.actor }}@users.noreply.github.com
           GITHUB_REPOSITORY: ${{ github.repository }}
