@@ -19,11 +19,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure Git user
-        run: |
-          git config --global user.email "adria7904@gmail.com"
-          git config --global user.name "clhore"
-
       - name: Configurar Python
         uses: actions/setup-python@v4
         with:
