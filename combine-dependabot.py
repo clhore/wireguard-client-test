@@ -107,7 +107,7 @@ def push_branch():
     #    print("No hay cambios para empujar. Se omite el push.")
     #    return False
     print(f"Empujando la rama '{COMBINE_BRANCH}' a origin...")
-    run_git("push", "-u", "origin", COMBINE_BRANCH)
+    run_git("push", "-u", "origin", COMBINE_BRANCH), "--force"
     return True
 
 def create_pull_request(pr_list_text):
