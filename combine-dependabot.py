@@ -100,9 +100,9 @@ def push_branch():
     return True
 
 def create_pull_request(pr_list_text):
-    if not pr_list_text:
-        print("No se encontraron PRs para combinar, no se creará ninguna nueva PR.")
-        return
+    #if not pr_list_text:
+    #    print("No se encontraron PRs para combinar, no se creará ninguna nueva PR.")
+    #    return
     owner, repo = REPO.split("/")
     title = "Combinar Dependabot: actualizaciones consolidadas"
     body = f"Esta pull request fue creada automáticamente combinando las siguientes PRs de Dependabot:\n\n{pr_list_text}"
