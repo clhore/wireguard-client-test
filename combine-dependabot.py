@@ -90,9 +90,13 @@ def cherry_pick_pr(pr):
         return False
 
 def has_changes():
-    """Verifica si hay cambios en la rama actual."""
+    """Verifica si hay cambios locales o commits pendientes de empujar."""
     status = run_git("status", "--porcelain")
-    return bool(status.strip())
+    try:
+        ahead = run_git("rev-list", "--count", "--left-only", "@{u}...HEAD")
+    except subprocess.CalledProcessError:
+        ahead = "0"
+    return bool(status.strip()) or int(ahead) > 0
 
 def push_branch():
     """Empuja la rama combinada al repositorio remoto si hay cambios."""
@@ -145,7 +149,7 @@ def main():
         print(f"Procesando PR #{pr['number']} - {pr['title']}")
 
         if commit_already_applied(pr["head"]["sha"]) or not get_commit_diff(pr["head"]["sha"]):
-            print(f"PR #{pr["number"]} ya ha sido aplicada o no tiene cambios efectibos. Omitiendo.")
+            print(f"PR #{pr['number']} ya ha sido aplicada o no tiene cambios efectivos. Omitiendo.")
             omitted_prs.append({
                 "number": pr["number"], "title": pr["title"], "url": pr["html_url"]});
             continue
