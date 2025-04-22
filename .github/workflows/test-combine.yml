@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OUTPUT_JSON: combinado.json  # Ruta donde se guardará el archivo JSON
+
     steps:
       - name: Clonar el repositorio
         uses: actions/checkout@v3
@@ -20,12 +21,6 @@ jobs:
       - name: Instalar dependencias
         run: pip install requests
 
-      - name: Revisar estado del repositorio local antes de ejecutar el script
-        run: |
-          echo "Estado del repositorio antes de ejecutar el script"
-          git status
-          git log --oneline -n 5
-
       - name: Ejecutar combine-dependabot.py
         run: python combine-dependabot.py
         env:
@@ -34,14 +29,29 @@ jobs:
           BASE_BRANCH: master
           COMBINE_BRANCH: combine-dependabot
           BRANCH_PREFIX: dependabot
-          OUTPUT_JSON: ${{ env.OUTPUT_JSON }}  # Ruta donde se guardará el archivo JSON
-        
-      - name: Revisar estado del repositorio local después de ejecutar el script
+          OUTPUT_JSON: ${{ env.OUTPUT_JSON }}
+
+      - name: Verificar estado del repositorio antes del merge
         run: |
-          echo "Estado del repositorio después de ejecutar el script"
+          echo "Estado del repositorio antes del merge"
           git status
           git log --oneline -n 5
 
-      - name: Check archivo combinado
+      - name: Fusionar combine-dependabot en master
+        run: |
+          git checkout master
+          git merge combine-dependabot --no-ff --no-edit
+
+      - name: Verificar estado del repositorio después del merge
+        run: |
+          echo "Estado del repositorio después del merge"
+          git status
+          git log --oneline -n 5
+
+      - name: Empujar cambios a master
+        run: |
+          git push origin master
+
+      - name: Verificar archivo combinado
         run: |
           cat $OUTPUT_JSON
