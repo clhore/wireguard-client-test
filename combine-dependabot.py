@@ -21,7 +21,6 @@ REPO = os.environ.get("GITHUB_REPOSITORY")
 OUTPUT_JSON = os.environ.get("OUTPUT_JSON", "")
 
 def run_git(*args, check=True):
-    """Run a Git command and return its output."""
     try:
         result = subprocess.run(["git"] + list(args), check=check, text=True, capture_output=True)
         return result.stdout.strip()
@@ -29,12 +28,29 @@ def run_git(*args, check=True):
         raise RuntimeError(f"Error executing git {' '.join(args)}: {e.stderr.strip()}")
 
 def auth_git():
-    subprocess.run(["git", "config", "--global", "user.name", GIT_USERNAME], check=True)
-    subprocess.run(["git", "config", "--global", "user.email", GIT_EMAIL], check=True)
-    subprocess.run(["git", "config", "--global", "push.autoSetupRemote", "always"], check=True)
+    try:
+        run_git("git", "config", "--global", "user.name", GIT_USERNAME)
+        run_git("git", "config", "--global", "user.email", GIT_EMAIL)
+        logger.info("git authentication configured")
+        return True
+    except RuntimeError:
+        logger.warning("failed to set git config")
+    except Exception as e:
+        logger.error(f"unexpected error: {str(e)}")
+    return False
+
+def config_git():
+    try:
+        run_git("git", "config", "--global", "push.autoSetupRemote", "always")
+        logger.info("Git config set for autoSetupRemote always.")
+        return True
+    except RuntimeError:
+        logger.warning("failed to set git config")
+    except Exception as e:
+        logger.error(f"unexpected error: {str(e)}")
+    return False
 
 def branch_exists_remote(branch_name):
-    """Check if a remote branch exists."""
     try:
         output = run_git("ls-remote", "--heads", "origin", branch_name)
         return bool(output)
@@ -42,7 +58,6 @@ def branch_exists_remote(branch_name):
         return False
 
 def setup_repository():
-    """Set up the repository by checking out the combine branch based on the base branch."""
     logger.info(f"Setting up branch '{COMBINE_BRANCH}' based on '{BASE_BRANCH}'...")
     try:
         run_git("fetch", "--all")
@@ -51,6 +66,7 @@ def setup_repository():
             run_git("checkout", COMBINE_BRANCH)
             run_git("reset", "--hard", f"origin/{COMBINE_BRANCH}")
             return True
+        run_git("checkout", "-B", COMBINE_BRANCH, BASE_BRANCH)
     except RuntimeError as e:
         raise RuntimeError(f"Error creating or switching to branch '{COMBINE_BRANCH}': {e}")
     except Exception as e:
@@ -58,7 +74,6 @@ def setup_repository():
     return True
 
 def get_dependabot_prs() -> list:
-    """Retrieve open Dependabot PRs based on the base branch and prefix."""
     logger.info(f"Fetching open PRs based on '{BASE_BRANCH}' with head starting with '{BRANCH_PREFIX}'...")
     owner, repo = REPO.split("/")
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&base={BASE_BRANCH}"
@@ -74,7 +89,6 @@ def get_dependabot_prs() -> list:
     return [pr for pr in pulls if pr["head"]["ref"].startswith(BRANCH_PREFIX)]
 
 def commit_already_applied(commit_sha) -> bool:
-    """Check if a commit has already been applied to the current branch."""
     try:
         subprocess.run(["git", "merge-base", "--is-ancestor", commit_sha, "HEAD"], check=True)
         logger.info(f"Commit {commit_sha} is already present in the branch.")
@@ -83,12 +97,10 @@ def commit_already_applied(commit_sha) -> bool:
         return False
 
 def get_commit_diff(commit_sha) -> str:
-    """Get the diff of a specific commit."""
     diff = run_git("diff", f"{commit_sha}^!", check=False)
     return diff.strip()
 
 def cherry_pick_pr(pr) -> bool:
-    """Attempt to cherry-pick a PR's commit into the current branch."""
     commit_sha = pr["head"]["sha"]
     pr_number = pr["number"]
     logger.info(f"Cherry-picking commit {commit_sha} from PR #{pr_number}...")
@@ -105,7 +117,6 @@ def cherry_pick_pr(pr) -> bool:
         return False
 
 def has_changes() -> bool:
-    """Determine if there are changes to be pushed."""
     status = run_git("status", "--porcelain")
     if status.strip():
         return True
@@ -119,7 +130,6 @@ def has_changes() -> bool:
     return int(ahead.strip()) > 0
 
 def push_branch() -> bool:
-    """Push the current branch to the remote repository."""
     if not has_changes():
         logger.info("No changes to push. Skipping push.")
         return False
@@ -128,7 +138,6 @@ def push_branch() -> bool:
     return True
 
 def create_pull_request(pr_list_text):
-    """Create a new pull request combining multiple Dependabot PRs."""
     if not pr_list_text:
         logger.info("No PRs found to combine. No new PR will be created.")
         return
@@ -157,11 +166,14 @@ def create_pull_request(pr_list_text):
 
 def main():
     auth_git()
+    if not config_git():
+        logger.error("failed to configure git. Exiting.")
+        return
     setup_repository()
 
     prs = get_dependabot_prs()
     if not prs:
-        logger.info("No Dependabot PRs found to combine.")
+        logger.info("no Dependabot PRs found to combine.")
         return
 
     pr_list_text = ""
