@@ -123,7 +123,7 @@ def has_changes() -> bool:
     
     try:
         upstream = run_git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-    except subprocess.CalledProcessError:
+    except RuntimeError:
         return True
     
     ahead = run_git("rev-list", "--count", "--left-only", f"{upstream}...HEAD")
