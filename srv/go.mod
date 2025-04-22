@@ -1,4 +1,3 @@
-
 module github.com/clhore/wireguard-client
 
 go 1.24.1
