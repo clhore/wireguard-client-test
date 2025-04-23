@@ -6,14 +6,12 @@ import json
 import requests
 import logging
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
-# Environment variables
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-GIT_USERNAME = os.environ.get("GIT_USERNAME", "dependabot[bot]")
-GIT_EMAIL = os.environ.get("GIT_EMAIL", "dependabot[bot]@users.noreply.github.com")
+GIT_USERNAME = os.environ.get("GIT_USERNAME", "github-actions")
+GIT_EMAIL = os.environ.get("GIT_EMAIL", "github-actions@users.noreply.github.com")
 BASE_BRANCH = os.environ.get("BASE_BRANCH", "main")
 COMBINE_BRANCH = os.environ.get("COMBINE_BRANCH", "combine-dependabot")
 PR_USER = os.environ.get("PR_USER", "dependabot[bot]")

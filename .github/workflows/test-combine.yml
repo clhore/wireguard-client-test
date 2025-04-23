@@ -29,17 +29,26 @@ jobs:
       - name: Instalar dependencias
         run: pip install requests
 
-      - name: Ejecutar combine-dependabot.py
-        run: python combine-dependabot.py
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          #GIT_USERNAME: ${{ github.actor }}
-          #GIT_EMAIL: ${{ github.actor }}@users.noreply.github.com
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          BASE_BRANCH: ${{ env.TARGET_BRANCH }}
-          COMBINE_BRANCH: ${{ env.COMBINE_BRANCH }}
-          PR_USER: dependabot[bot]
-          OUTPUT_JSON: ${{ env.OUTPUT_JSON }}
+      #- name: Ejecutar combine-dependabot.py
+      #  run: python combine-dependabot.py
+      #  env:
+      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #    #GIT_USERNAME: ${{ github.actor }}
+      #    #GIT_EMAIL: ${{ github.actor }}@users.noreply.github.com
+      #    GITHUB_REPOSITORY: ${{ github.repository }}
+      #    BASE_BRANCH: ${{ env.TARGET_BRANCH }}
+      #    COMBINE_BRANCH: ${{ env.COMBINE_BRANCH }}
+      #    PR_USER: dependabot[bot]
+      #    OUTPUT_JSON: ${{ env.OUTPUT_JSON }}
+
+      - name: Ejecutar acción de combinación
+        uses: clhore/combine-dependabot-pull-requests@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: master
+          combine_branch: combine-dependabot
+          pr_user: dependabot[bot]
+          output_json: combined.json
 
       - name: Cargar archivo JSON como artefacto
         uses: actions/upload-artifact@v4
