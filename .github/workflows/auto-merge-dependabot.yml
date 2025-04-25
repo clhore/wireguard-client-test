@@ -1,5 +1,4 @@
 name: Combine and Auto-Merge Dependabot PRs
-
 on:
   schedule:
     - cron: '0 15 * * 1'
