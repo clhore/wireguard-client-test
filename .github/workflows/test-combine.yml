@@ -1,5 +1,4 @@
 name: Combinar Dependabot
-
 on:
   workflow_dispatch:
 
